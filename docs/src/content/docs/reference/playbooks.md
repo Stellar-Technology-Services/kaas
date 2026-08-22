@@ -5,7 +5,7 @@ description: The Ansible playbooks that provision the guest and the CLI commands
 
 `kaas` generates an inventory per run; the playbooks do the provisioning.
 After `kaas init`, the live user copy is `~/.kaas/ansible/`, cloned from
-`https://github.com/Stellar-Technology-Services/ansible` by default (or another URL via the init
+`https://github.com/kaas-dev/ansible` by default (or another URL via the init
 prompt / `--ansible-repo`). For **why Ansible is required and how to extend
 it**, see the [Ansible guide](../guides/ansible/). Day-to-day edit recipes are
 also in [Ansible directory and git](../faq.md#ansible-directory-and-git) in the

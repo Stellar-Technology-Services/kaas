@@ -17,7 +17,7 @@ import (
 
 // defaultAnsibleRepo is cloned into <workspace>/ansible when kaas init seeds
 // a fresh Ansible tree.
-const defaultAnsibleRepo = "https://github.com/Stellar-Technology-Services/ansible"
+const defaultAnsibleRepo = "https://github.com/kaas-dev/ansible"
 
 // initAssets holds root workspace templates (config example + SecretSpec
 // manifest). Ansible is seeded by cloning a git repository instead.

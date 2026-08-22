@@ -46,7 +46,7 @@ internal/sandbox/contract   sandbox contract types, resolver, hash, SQLite snaps
 `kaas.example.yaml` and `secretspec.toml` are embedded into the compiled CLI by
 `assets.go`; `kaas init` writes those files into `~/.kaas`. Ansible playbooks
 are not embedded — `kaas init` clones a git repository into `~/.kaas/ansible/`
-(default `https://github.com/Stellar-Technology-Services/ansible`). The in-repo `ansible/` tree
+(default `https://github.com/kaas-dev/ansible`). The in-repo `ansible/` tree
 remains for local development and syncing with that upstream repository.
 
 ## Technology notes
@@ -64,9 +64,10 @@ remains for local development and syncing with that upstream repository.
 ## Releases
 
 Releases are built by GitHub Actions with [GoReleaser](https://goreleaser.com/)
-when a `v*` tag is pushed. The tag's leading `v` is removed from the package
-version: pushing `v0.1.0` produces release artifacts with version `0.1.0` and
-sets `kaas version` to `0.1.0`.
+when a `v*` tag is pushed. User-facing notes live in [`CHANGELOG.md`](https://github.com/Stellar-Technology-Services/kaas/blob/main/CHANGELOG.md).
+The tag's leading `v` is removed from the package version: pushing `v0.1.0`
+produces release artifacts with version `0.1.0` and sets `kaas version` to
+`0.1.0`.
 
 The release workflow cross-compiles with `CGO_ENABLED=0` and publishes Darwin
 and Linux archives for `arm64` and `amd64`, plus Debian/Ubuntu `.deb` packages

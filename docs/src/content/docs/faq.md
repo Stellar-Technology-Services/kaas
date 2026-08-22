@@ -34,7 +34,7 @@ kaas config show
 ```
 
 `kaas init` clones an Ansible git repository into `~/.kaas/ansible/` (default
-`https://github.com/Stellar-Technology-Services/ansible`) and **preserves an existing `ansible/`
+`https://github.com/kaas-dev/ansible`) and **preserves an existing `ansible/`
 tree**, so rerunning init does not wipe your edits.
 
 ### Edit variables (packages, versions, toggles)
@@ -117,7 +117,7 @@ kaas deps --install --optional   # also install herdr
 ### Ansible directory and git
 
 `kaas init` seeds `~/.kaas/ansible` by cloning a git repository (default
-`https://github.com/Stellar-Technology-Services/ansible`). You can accept the default at the
+`https://github.com/kaas-dev/ansible`). You can accept the default at the
 prompt, type another URL, or pass `--ansible-repo URL` for non-interactive
 runs. KaaS already runs from that directory by default, so no config change is
 required.
@@ -125,7 +125,7 @@ required.
 ```bash
 kaas init
 # or:
-kaas init --ansible-repo https://github.com/Stellar-Technology-Services/ansible
+kaas init --ansible-repo https://github.com/kaas-dev/ansible
 ```
 
 Day to day: edit playbooks or `group_vars/all.yml`, commit in that directory,
@@ -153,7 +153,7 @@ Relative paths resolve from the global KaaS workspace (`~/.kaas`).
 
 ### Syncing with upstream canonical playbooks
 
-Upstream Ansible lives at [Stellar-Technology-Services/ansible](https://github.com/Stellar-Technology-Services/ansible).
+Upstream Ansible lives at [kaas-dev/ansible](https://github.com/kaas-dev/ansible).
 Your live copy is the clone at `~/.kaas/ansible/`. When you want new upstream
 tasks:
 

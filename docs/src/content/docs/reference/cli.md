@@ -16,7 +16,7 @@ stay flat (`kaas create`, not `kaas vm create`).
 
 | Command | Description |
 |---|---|
-| `kaas init` | Initialize `~/.kaas`: clone Ansible from git (default `https://github.com/Stellar-Technology-Services/ansible`), install config and SecretSpec; `--dir`, `--ansible-repo` |
+| `kaas init` | Initialize `~/.kaas`: clone Ansible from git (default `https://github.com/kaas-dev/ansible`), install config and SecretSpec; `--dir`, `--ansible-repo` |
 | `kaas project init` | Scaffold a Git project `kaas.yaml` and `scripts/kaas-setup` contract |
 | `kaas config show` | Print effective configuration and its user/project file sources |
 | `kaas deps` | Show host dependencies for this OS; `--install` installs missing ones |

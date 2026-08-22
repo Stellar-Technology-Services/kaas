@@ -257,7 +257,7 @@ available. Paths stay flat (`kaas create`, not `kaas vm create`).
 
 | Command | Description |
 |---|---|
-| `kaas init` | Initialize `~/.kaas`: clone Ansible from git (default `https://github.com/Stellar-Technology-Services/ansible`), install config and SecretSpec; `--dir`, `--ansible-repo` |
+| `kaas init` | Initialize `~/.kaas`: clone Ansible from git (default `https://github.com/kaas-dev/ansible`), install config and SecretSpec; `--dir`, `--ansible-repo` |
 | `kaas project init` | Scaffold a Git project workspace contract |
 | `kaas config show` | Print resolved configuration and its sources |
 | `kaas deps` | Show host dependencies for this OS; `--install` installs missing ones |
@@ -594,7 +594,7 @@ All Ansible-owned files—including the configuration, inventory, playbooks, Gal
 `kaas.example.yaml` and `secretspec.toml` are embedded into the compiled CLI;
 `kaas init` installs them into `~/.kaas`. Ansible is seeded by cloning a git
 repository into `~/.kaas/ansible/` (default
-`https://github.com/Stellar-Technology-Services/ansible`; override with the init prompt or
+`https://github.com/kaas-dev/ansible`; override with the init prompt or
 `--ansible-repo`). The in-repo `ansible/` tree is for local development and
 upstream sync.
 
@@ -643,9 +643,9 @@ Or directly: `go test ./...` / `go build -o dist/kaas ./cmd/kaas`.
 
 ## Releases (macOS and Linux)
 
-Push a `v*` tag to build and publish release artifacts with GoReleaser. The
-leading `v` is omitted from the package version, so `v0.1.0` produces version
-`0.1.0`:
+Push a `v*` tag to build and publish release artifacts with GoReleaser.
+User-facing notes are in [`CHANGELOG.md`](CHANGELOG.md). The leading `v` is
+omitted from the package version, so `v0.1.0` produces version `0.1.0`:
 
 ```bash
 git tag v0.1.0

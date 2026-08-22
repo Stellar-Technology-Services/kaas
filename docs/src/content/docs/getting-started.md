@@ -19,7 +19,7 @@ kaas init
 ```
 
 `kaas init` prompts for an Ansible git repository (default
-`https://github.com/Stellar-Technology-Services/ansible`) and clones it into `~/.kaas/ansible/`.
+`https://github.com/kaas-dev/ansible`) and clones it into `~/.kaas/ansible/`.
 Pass `--ansible-repo URL` to skip the prompt (non-interactive runs use the
 default when the flag is omitted). It also installs `~/.kaas/secretspec.toml`
 and `~/.kaas/kaas.yaml` (configured to use that Ansible directory). The SQLite

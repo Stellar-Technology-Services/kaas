@@ -68,7 +68,7 @@ flowchart LR
 ```
 
 Live assets after `kaas init` live under `~/.kaas/ansible/` (cloned from
-[Stellar-Technology-Services/ansible](https://github.com/Stellar-Technology-Services/ansible) by default). The
+[kaas-dev/ansible](https://github.com/kaas-dev/ansible) by default). The
 canonical playbook map is in [Playbooks](../reference/playbooks/).
 
 ## What Ansible owns vs what the project owns
