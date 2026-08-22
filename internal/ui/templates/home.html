@@ -1,0 +1,56 @@
+{{define "home"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>Overview</h1>
+  <div id="overview"
+       hx-get="/partials/overview"
+       hx-trigger="every 3s"
+       hx-swap="innerHTML">
+    {{template "partial_overview" .}}
+  </div>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "partial_overview"}}
+{{with .Overview}}
+<div class="grid">
+  <div class="card"><div class="label">Sandboxes</div><div class="value">{{.SandboxCount}}</div></div>
+  <div class="card"><div class="label">Running</div><div class="value">{{.RunningCount}}</div></div>
+  <div class="card"><div class="label">Services</div><div class="value">{{.ServiceCount}}</div></div>
+  <div class="card"><div class="label">Ingress</div><div class="value">{{if .IngressRunning}}<span class="pill ok">up</span>{{else}}<span class="pill bad">down</span>{{end}}</div></div>
+  <div class="card"><div class="label">DNS *.{{.Domain}}</div><div class="value">{{if .DNSEnabled}}<span class="pill ok">on</span>{{else}}<span class="pill warn">off</span>{{end}}</div></div>
+</div>
+<div class="stack">
+  <div class="card">
+    <div class="label">Host tools</div>
+    <div style="margin-top:.75rem">
+      {{range .Tools}}
+        <span class="pill {{if .OK}}ok{{else}}bad{{end}}" title="{{.Detail}}" style="margin:0 .35rem .35rem 0">{{.Name}}</span>
+      {{end}}
+    </div>
+    <p class="muted" style="margin:.75rem 0 0">UI {{.Listen}} · ingress {{emptyDash .IngressListen}} · catalog <a href="{{.CatalogURL}}">{{.CatalogURL}}</a></p>
+  </div>
+  <div>
+    <h1 style="font-size:1.05rem">Sandboxes</h1>
+    {{template "partial_sandboxes" $}}
+  </div>
+  <div>
+    <h1 style="font-size:1.05rem">Published services</h1>
+    {{template "partial_services" $}}
+  </div>
+</div>
+{{end}}
+{{end}}

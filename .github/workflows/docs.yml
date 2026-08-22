@@ -1,0 +1,70 @@
+name: Deploy docs
+
+# Publish the Starlight site to GitHub Pages when a release tag is pushed.
+#
+# Public URL for Stellar-Technology-Services/kaas: https://stellar-technology-services.github.io/kaas/
+#
+# One-time setup: Settings → Pages → Source = GitHub Actions.
+# Also allow tag pattern `v*` on the github-pages environment.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build Starlight site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Resolve Pages site and base
+        id: pages
+        run: |
+          owner="${GITHUB_REPOSITORY%/*}"
+          repo="${GITHUB_REPOSITORY#*/}"
+          org_site="${owner}.github.io"
+          if [ "${repo}" = "${org_site}" ]; then
+            site="https://${org_site}"
+            base="/"
+          else
+            site="https://${org_site}/${repo}"
+            base="/${repo}/"
+          fi
+          echo "site=${site}" >> "$GITHUB_OUTPUT"
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+          echo "Publishing to ${site}${base}"
+
+      - name: Install, build, and upload Pages artifact
+        uses: withastro/action@v6
+        with:
+          path: docs
+          node-version: 22
+        env:
+          SITE: ${{ steps.pages.outputs.site }}
+          BASE: ${{ steps.pages.outputs.base }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

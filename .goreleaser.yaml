@@ -1,0 +1,57 @@
+version: 2
+
+before:
+  hooks:
+    - go test ./...
+
+
+builds:
+  - id: kaas
+    main: ./cmd/kaas
+    binary: kaas
+    ldflags:
+      - -s -w
+      - -X github.com/Stellar-Technology-Services/kaas/internal/cli.Version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - arm64
+      - amd64
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - id: dist
+    ids:
+      - kaas
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+
+nfpms:
+  - id: deb
+    package_name: kaas
+    ids: [kaas]
+    formats: [deb]
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    homepage: https://github.com/Stellar-Technology-Services/kaas
+    maintainer: Stellar Technology Services <pradeep@getstellar.ai>
+    description: Koding Agent Application Sandbox CLI
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: false
+  prerelease: auto
+  mode: replace
+
+changelog:
+  use: github-native

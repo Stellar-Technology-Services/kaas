@@ -1,0 +1,88 @@
+# Example project config for kaas (KaaS).
+# Copy to kaas.yaml in the project root and adjust as needed.
+#
+# Precedence: flags > KAAS_* env > kaas.yaml > ~/.kaas/kaas.yaml > built-ins
+#
+# Default machine-readable output for every command; --jsonl overrides this.
+output:
+  jsonl: false
+
+# Optional project bootstrap, run after base provisioning and trusted secrets deployment.
+# workspace:
+#   git_auth: agent  # agent (default), guest_key, https, or none
+#   varlock:
+#     schema: .env.schema
+#     # Validates with redacted output before setup; requires Varlock in the repo/guest.
+#     validate_command: varlock load --agent --summary-stderr
+#   sources:
+#     - repository: git@github.com:acme/project.git
+#       branch: main
+#       directory: ~/workspace/project
+#     # - repository: git@github.com:acme/project-api.git
+#     #   directory: ~/workspace/project-api
+#   # KaaS clones every sources[] entry; ./scripts/kaas-setup runs in sources[0].
+#   # Optional: publish guest HTTP listeners on the host as *.kaas.test names.
+#   # services:
+#   #   frontend:
+#   #     port: 3000
+#   #     scheme: http
+#   #   api:
+#   #     port: 8080
+
+defaults:
+  cpus: 4
+  memory_gib: 8
+  disk_gib: 64
+  arch: aarch64
+  ssh_port_base: 6022
+
+paths:
+  ansible_dir: ansible
+  ssh_key: ~/.colima/_lima/_config/user
+
+state:
+  # User-global registry; override with --state or KAAS_STATE_PATH
+  path: ~/.kaas/state.db
+
+ansible:
+  playbooks:
+    setup: setup.yml
+    agents: coding-agents.yml
+    secrets: deploy-secrets.yml
+    pubkey: pubkey.yml
+    egress: egress.yml
+
+# Optional project-owned egress policy. Values must never appear here.
+# KaaS currently validates and prints this policy only (`kaas egress plan`);
+# it does not yet install a proxy or enforce proxy_only networking.
+# egress:
+#   schema_version: 1
+#   mode: proxy_preferred
+#   default: deny
+#   rules:
+#     - host: github.com
+#     - host: api.github.com
+#       inject_secret:
+#         key: GITHUB_TOKEN
+#         type: bearer
+
+# Host-owned egress runtime; configure globally, never in project kaas.yaml.
+egress_runtime:
+  root: ~/.kaas/egress
+  listen_host: 0.0.0.0
+  guest_host: host.lima.internal
+  port_base: 18080
+
+# Host-owned HTTP ingress + local DNS for workspace.services (*.kaas.test).
+# Configure globally; never in project kaas.yaml.
+ingress_runtime:
+  root: ~/.kaas/ingress
+  listen: 127.0.0.1:18000
+  dns_listen: 127.0.0.1:5353
+  domain: kaas.test
+  host_port_base: 19000
+
+# Optional localhost management dashboard (kaas ui). Host-owned only.
+ui_runtime:
+  root: ~/.kaas/ui
+  listen: 127.0.0.1:18181

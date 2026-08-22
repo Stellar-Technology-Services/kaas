@@ -1,0 +1,21 @@
+{
+  "name": "kaas-docs",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Starlight documentation for kaas — KaaS",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "astro": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

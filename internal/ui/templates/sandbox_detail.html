@@ -1,0 +1,56 @@
+{{define "sandbox_detail"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+{{with .Sandbox}}
+  <div class="row" style="justify-content:space-between;margin-bottom:1rem">
+    <h1 style="margin:0"><code>{{.Name}}</code></h1>
+    <form method="post" action="/sandboxes/{{.Name}}/sync">
+      <button type="submit">Sync services</button>
+    </form>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="label">Desired</div><div class="value" style="font-size:1rem">{{emptyDash .DesiredState}}</div></div>
+    <div class="card"><div class="label">Observed</div><div class="value" style="font-size:1rem">{{emptyDash .ObservedState}}</div></div>
+    <div class="card"><div class="label">SSH</div><div class="value" style="font-size:1rem">{{.SSHPort}}</div></div>
+    <div class="card"><div class="label">Resources</div><div class="value" style="font-size:1rem">{{.CPUs}}/{{.MemoryGiB}}/{{.DiskGiB}}</div></div>
+  </div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="label">Workspace</div>
+    <p style="margin:.5rem 0 0">{{emptyDash .Workspace}}</p>
+    <p class="muted" style="margin:.35rem 0 0">repo path {{emptyDash .RepoPath}} · setup {{emptyDash .SetupStatus}} · egress {{emptyDash .EgressMode}}</p>
+    {{if $.ContractHash}}<p class="muted" style="margin:.35rem 0 0">contract <code>{{$.ContractHash}}</code></p>{{end}}
+  </div>
+{{end}}
+  <h1 style="font-size:1.05rem">Published URLs</h1>
+  {{template "partial_services" .}}
+  <h1 style="font-size:1.05rem;margin-top:1.25rem">Recent events</h1>
+  <table>
+    <thead><tr><th>Time</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
+    <tbody>
+    {{range .Events}}
+      <tr>
+        <td class="muted">{{fmtTime .CreatedAt}}</td>
+        <td>{{.Action}}</td>
+        <td><span class="pill {{if eq .Status "ok"}}ok{{else if eq .Status "failed"}}bad{{end}}">{{.Status}}</span></td>
+        <td class="muted">{{emptyDash .Detail}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="4" class="muted">No events.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}

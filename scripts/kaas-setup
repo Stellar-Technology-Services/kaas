@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# KaaS project setup contract.
+#
+# KaaS runs this script inside the guest after it has cloned/updated the
+# workspace and, when configured, validated the project's Varlock schema.
+# Keep it safe to run repeatedly: install dependencies, start local services,
+# apply idempotent migrations, or create development fixtures here.
+#
+# Examples:
+#   pnpm install --frozen-lockfile
+#   docker compose up -d postgres redis
+#   varlock run -- pnpm db:migrate
+#
+# Do not put secret values in this file. Use SecretSpec and/or Varlock.
+set -euo pipefail
+
+# Add project bootstrap steps below.

@@ -1,0 +1,37 @@
+{{define "events"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>Events{{if .Filter}} · <code>{{.Filter}}</code>{{end}}</h1>
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Sandbox</th><th>Action</th><th>Status</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+    {{range .Events}}
+      <tr>
+        <td class="muted">{{fmtTime .CreatedAt}}</td>
+        <td><a href="/sandboxes/{{.Sandbox}}"><code>{{.Sandbox}}</code></a></td>
+        <td>{{.Action}}</td>
+        <td><span class="pill {{if eq .Status "ok"}}ok{{else if eq .Status "failed"}}bad{{end}}">{{.Status}}</span></td>
+        <td class="muted">{{emptyDash .Detail}}</td>
+      </tr>
+    {{else}}
+      <tr><td colspan="5" class="muted">No events.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}

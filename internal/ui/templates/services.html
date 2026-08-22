@@ -1,0 +1,50 @@
+{{define "services"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>Published services</h1>
+  <div id="services"
+       hx-get="/partials/services"
+       hx-trigger="every 3s"
+       hx-swap="innerHTML">
+    {{template "partial_services" .}}
+  </div>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "partial_services"}}
+<table>
+  <thead>
+    <tr>
+      <th>Sandbox</th><th>Service</th><th>Hostname</th><th>URL</th><th>Guest</th><th>Host</th><th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Services}}
+    <tr>
+      <td><a href="/sandboxes/{{.Sandbox}}"><code>{{.Sandbox}}</code></a></td>
+      <td>{{.Service}}</td>
+      <td><code>{{.Hostname}}</code></td>
+      <td><a href="{{.URL}}" target="_blank" rel="noopener">{{.URL}}</a></td>
+      <td>{{.GuestPort}}</td>
+      <td>{{.HostPort}}</td>
+      <td><span class="pill">{{emptyDash .Status}}</span></td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7" class="muted">No published services. Declare <code>workspace.services</code> and run <code>kaas services sync</code>.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

@@ -1,0 +1,50 @@
+{{define "sandboxes"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>Sandboxes</h1>
+  <div id="sandboxes"
+       hx-get="/partials/sandboxes"
+       hx-trigger="every 3s"
+       hx-swap="innerHTML">
+    {{template "partial_sandboxes" .}}
+  </div>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "partial_sandboxes"}}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Desired</th><th>Observed</th><th>SSH</th><th>Resources</th><th>Setup</th><th>Egress</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Sandboxes}}
+    <tr>
+      <td><a href="/sandboxes/{{.Name}}"><code>{{.Name}}</code></a></td>
+      <td><span class="pill">{{emptyDash .DesiredState}}</span></td>
+      <td><span class="pill {{if eq .ObservedState "running"}}ok{{else if eq .ObservedState "stopped"}}warn{{else}}{{end}}">{{emptyDash .ObservedState}}</span></td>
+      <td>{{.SSHPort}}</td>
+      <td class="muted">{{.CPUs}} CPU / {{.MemoryGiB}} GiB / {{.DiskGiB}} GiB</td>
+      <td>{{emptyDash .SetupStatus}}</td>
+      <td class="muted">{{emptyDash .EgressMode}} {{emptyDash .EgressStatus}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7" class="muted">No sandboxes registered. Run <code>kaas up &lt;name&gt;</code>.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

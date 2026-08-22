@@ -1,0 +1,26 @@
+.DS_Store
+# Local secrets — never commit real keys
+*.retry
+.vault_pass
+.vault_pass.txt
+
+# Go build output
+/dist/
+*.exe
+
+# Porter build artifacts
+porter/.cnab/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+.beads/
+
+# Firecrawl
+.firecrawl/
+
+# Cursor etc
+.cursor/
+.antigravitycli/

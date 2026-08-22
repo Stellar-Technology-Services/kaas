@@ -1,0 +1,46 @@
+/* Task-specific styling tweaks.
+   Imported from astro.config.mjs via the customCss option, if desired. */
+
+:root {
+  --sl-color-accent-high: #93c5fd;
+  --sl-color-accent: #3b82f6;
+  --sl-color-accent-low: #172554;
+}
+
+/* Keep code blocks comfortably readable for wide Ansible/YAML snippets. */
+.sl-markdown-content pre {
+  font-size: 0.85rem;
+}
+
+/* Home / index page card grid */
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.home-card {
+  display: block;
+  padding: 1.1rem 1.15rem 0.9rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.6rem;
+  background: var(--sl-color-gray-7);
+  color: var(--sl-color-white);
+  text-decoration: none;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.home-card:hover {
+  border-color: var(--sl-color-accent);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+.home-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+.home-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--sl-color-gray-3);
+}
