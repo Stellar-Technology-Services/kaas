@@ -1,6 +1,6 @@
 # KaaS — Koding Agent Application Sandbox (`kaas`)
 
-<p align="center"><img src="presentation/assets/leyden-cheese.png" alt="Leyden cheese — KaaS logo" width="160" /></p>
+<p align="center"><img src="kaas.png" alt="Leyden cheese — KaaS logo" width="160" /></p>
 
 **Persistent local Linux workspaces for coding agents.**
 
