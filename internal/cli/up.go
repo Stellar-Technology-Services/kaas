@@ -127,7 +127,9 @@ func runWorkspaceSetup(cmd *cobra.Command, name string) error {
 	}
 	if len(sources) == 0 {
 		recordEvent(store, name, "checkout", "skipped", "no workspace configured")
+		recordEvent(store, name, "environment", "skipped", "no workspace configured")
 		recordEvent(store, name, "setup", "skipped", "no workspace configured")
+		printStyled(cmd, styleInfo, "No workspace.sources configured; skipping checkout and setup on %s\n", name)
 		return nil
 	}
 	primary := sources[0]

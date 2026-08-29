@@ -28,13 +28,15 @@ workspace:
   #   validate_command: varlock load --agent --summary-stderr
 
   # Managed guest checkouts. sources[0] is primary (Varlock + scripts/kaas-setup).
+  # Add a repository to have KaaS clone it; until then KaaS skips checkout and
+  # runs setup in the directory below when it exists.
   sources:
-    - # repository: git@github.com:your-org/your-project.git
+    - directory: %s
+      # repository: git@github.com:your-org/your-project.git
       # branch: main
-      directory: %s
-    # - repository: git@github.com:your-org/your-other-repo.git
+    # - directory: ~/workspace/your-other-repo
+    #   repository: git@github.com:your-org/your-other-repo.git
     #   branch: main
-    #   directory: ~/workspace/your-other-repo
 
   # Optional: publish guest listeners as http://<service>.<sandbox>.kaas.test
   # services:

@@ -166,16 +166,24 @@ func (c *Contract) Normalize() {
 	}
 }
 
-// normalizeSources trims whitespace on every managed checkout entry.
+// normalizeSources trims whitespace on every managed checkout entry and drops
+// entries that name neither a repository nor a directory, so an unfilled
+// placeholder hashes the same as no source at all.
 func (w *WorkspaceContract) normalizeSources() {
-	if w == nil {
+	if w == nil || len(w.Sources) == 0 {
 		return
 	}
-	for i := range w.Sources {
-		w.Sources[i].Repository = strings.TrimSpace(w.Sources[i].Repository)
-		w.Sources[i].Branch = strings.TrimSpace(w.Sources[i].Branch)
-		w.Sources[i].Directory = strings.TrimSpace(w.Sources[i].Directory)
+	sources := make([]WorkspaceSourceContract, 0, len(w.Sources))
+	for _, src := range w.Sources {
+		src.Repository = strings.TrimSpace(src.Repository)
+		src.Branch = strings.TrimSpace(src.Branch)
+		src.Directory = strings.TrimSpace(src.Directory)
+		if src.Repository == "" && src.Directory == "" {
+			continue
+		}
+		sources = append(sources, src)
 	}
+	w.Sources = sources
 }
 
 // normalizeServices trims and sorts declared services for stable hashing.

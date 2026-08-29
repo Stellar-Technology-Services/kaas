@@ -478,6 +478,12 @@ and optional Varlock validation (primary source only). The canonical repository 
 commented starter at that path. Make it idempotent; never place secret values
 in the script.
 
+`workspace.sources` is optional. With no source configured — including the
+placeholder entry written by `kaas project init` before you fill in a
+repository — every command still runs and `kaas up` records the `checkout`,
+`environment`, and `setup` phases as skipped. An entry with a `directory` but
+no `repository` skips only the clone and runs setup in that directory.
+
 ### Private repository checkout
 
 By default, `workspace.git_auth: agent` forwards the host SSH agent only for

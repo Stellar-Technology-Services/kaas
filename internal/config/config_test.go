@@ -295,8 +295,8 @@ func TestValidateWorkspaceVarlock(t *testing.T) {
 		t.Fatal("expected schema requirement")
 	}
 	c.Workspace.Varlock.Schema = ".env.schema"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected directory requirement")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("varlock schema without sources must not block startup: %v", err)
 	}
 	c.Workspace.Sources = []WorkspaceSource{{
 		Repository: "git@github.com:acme/app.git",
@@ -304,6 +304,26 @@ func TestValidateWorkspaceVarlock(t *testing.T) {
 	}}
 	if err := c.Validate(); err != nil {
 		t.Fatalf("valid Varlock configuration: %v", err)
+	}
+}
+
+func TestValidateWorkspaceSourcesUnset(t *testing.T) {
+	c := BuiltIn()
+	c.Workspace.Sources = []WorkspaceSource{{}, {Branch: "main"}}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("placeholder sources must not block startup: %v", err)
+	}
+	if len(c.Workspace.Sources) != 0 {
+		t.Fatalf("placeholder sources must be dropped: %+v", c.Workspace.Sources)
+	}
+
+	c = BuiltIn()
+	c.Workspace.Sources = []WorkspaceSource{{Directory: "~/workspace/app"}}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("directory without repository is a valid unmanaged checkout: %v", err)
+	}
+	if len(c.Workspace.Sources) != 1 {
+		t.Fatalf("directory-only source must be kept: %+v", c.Workspace.Sources)
 	}
 }
 

@@ -79,7 +79,9 @@ stage; see [Commands by stage](./overview.md#commands-by-stage).
 
 `kaas up` installs required Ansible Galaxy collections automatically. It also
 continues when no optional SecretSpec values resolve; add credentials later
-with `kaas secrets set` and deploy them with `kaas secrets deploy`.
+with `kaas secrets set` and deploy them with `kaas secrets deploy`. Likewise, a
+scaffolded `kaas.yaml` whose `workspace.sources` entry has no repository yet is
+valid: KaaS skips the checkout and setup phases instead of failing.
 
 KaaS provisions the Ubuntu release supplied by Colima. To adopt a newer guest
 baseline, create a fresh sandbox rather than performing an in-place OS upgrade.

@@ -145,7 +145,21 @@ workspace:
 Directories must be unique. `kaas list` / registry columns and the primary
 inspect fields refer to `sources[0]`; `kaas inspect` prints the full list when
 more than one source is configured. Every managed checkout is declared under
-`workspace.sources`; each entry requires a `repository` and a `directory`.
+`workspace.sources`; each entry requires a `directory`.
+
+### No sources configured
+
+`workspace.sources` is optional and never blocks KaaS from starting:
+
+- Omitting the key, or leaving the placeholder entry that `kaas project init`
+  writes before you fill in a repository, means "no managed checkout". `kaas
+  up` records the `checkout`, `environment`, and `setup` phases as skipped and
+  finishes normally; every other command runs as usual.
+- An entry that names a `directory` but no `repository` skips only the clone.
+  KaaS still treats it as the primary source, so Varlock validation and
+  `./scripts/kaas-setup` run there when that directory exists in the guest.
+- `workspace.varlock.schema` without any source is accepted; validation is
+  simply skipped until a source exists.
 
 ### Local HTTP services (`*.kaas.test`)
 
@@ -342,7 +356,7 @@ is not claimed. See [Delegated Egress](./egress.md).
 | `paths.ansible_dir` | `ansible` | Directory containing `ansible.cfg` and playbooks (default resolves to `~/.kaas/ansible`, cloned by `kaas init` from git — see the [FAQ](../faq.md#ansible-directory-and-git)) |
 | `paths.ssh_key` | `~/.colima/_lima/_config/user` | Colima SSH identity |
 | `state.path` | `~/.kaas/state.db` | SQLite registry. Relative paths resolve under `~/.kaas`, not the caller's CWD. |
-| `workspace.sources` | empty | Managed guest checkouts (`repository`, optional `branch`, `directory`); primary is `sources[0]` |
+| `workspace.sources` | empty | Optional managed guest checkouts (`directory`, optional `repository` and `branch`); primary is `sources[0]`. Unset entries are dropped and checkout/setup are skipped |
 | `workspace.git_auth` | `agent` | Checkout authentication for every source: `agent`, `guest_key`, `https`, or `none` |
 | `workspace.varlock.schema` | empty | Optional checked-in Varlock schema, relative to primary (`sources[0]`) directory |
 | `workspace.varlock.validate_command` | `varlock load --agent --summary-stderr` | Optional safe Varlock validation command; requires `schema` |

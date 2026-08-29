@@ -341,20 +341,24 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// normalizeAndValidate trims and validates the managed checkout list.
+// normalizeAndValidate trims the managed checkout list, drops unset entries,
+// and validates the rest. A scaffolded-but-unfilled entry means "no source
+// configured" and must never stop kaas from running.
 func (w *Workspace) normalizeAndValidate() error {
-	dirs := make(map[string]int, len(w.Sources))
-	for i := range w.Sources {
-		src := &w.Sources[i]
+	sources := make([]WorkspaceSource, 0, len(w.Sources))
+	for _, src := range w.Sources {
 		src.Repository = strings.TrimSpace(src.Repository)
 		src.Branch = strings.TrimSpace(src.Branch)
 		src.Directory = strings.TrimSpace(src.Directory)
-		if src.Repository == "" && src.Directory == "" && src.Branch == "" {
-			return fmt.Errorf("workspace.sources[%d]: empty entry", i)
+		if src.Repository == "" && src.Directory == "" {
+			continue
 		}
-		if src.Repository == "" {
-			return fmt.Errorf("workspace.sources[%d]: repository is required", i)
-		}
+		sources = append(sources, src)
+	}
+	w.Sources = sources
+
+	dirs := make(map[string]int, len(w.Sources))
+	for i, src := range w.Sources {
 		if src.Directory == "" {
 			return fmt.Errorf("workspace.sources[%d]: directory is required", i)
 		}
@@ -362,17 +366,11 @@ func (w *Workspace) normalizeAndValidate() error {
 			return fmt.Errorf("workspace.sources[%d]: directory %q duplicates sources[%d]", i, src.Directory, prev)
 		}
 		dirs[src.Directory] = i
-		if w.GitAuth == "https" && !strings.HasPrefix(src.Repository, "https://") {
+		if w.GitAuth == "https" && src.Repository != "" && !strings.HasPrefix(src.Repository, "https://") {
 			return fmt.Errorf("workspace.git_auth: https requires an https:// workspace.sources[%d].repository", i)
 		}
 	}
 
-	if w.Varlock.Schema != "" {
-		primary, ok := w.Primary()
-		if !ok || strings.TrimSpace(primary.Directory) == "" {
-			return fmt.Errorf("workspace.sources[0].directory is required when workspace.varlock.schema is configured")
-		}
-	}
 	if w.Varlock.ValidateCommand != "" && w.Varlock.Schema == "" {
 		return fmt.Errorf("workspace.varlock.validate_command requires workspace.varlock.schema")
 	}
