@@ -35,10 +35,20 @@ defaults:
   disk_gib: 64
   arch: aarch64
   ssh_port_base: 6022
+  # Named presets for `kaas up --size <name>` and the UI create form.
+  # "default" always means the cpus/memory_gib/disk_gib above.
+  sizes:
+    small: { cpus: 2, memory_gib: 4, disk_gib: 32 }
+    large: { cpus: 8, memory_gib: 16, disk_gib: 128 }
+  # Default auto-stop TTL for new sandboxes: never, or 1h / 4h / 2d (max 30d).
+  # The UI daemon (kaas ui start) enforces deadlines; `kaas extend` changes them.
+  auto_stop: never
 
 paths:
   ansible_dir: ansible
   ssh_key: ~/.colima/_lima/_config/user
+  # Per-sandbox phase logs (provision, agents, setup) shown on the UI sandbox page.
+  logs_dir: ~/.kaas/logs
 
 state:
   # User-global registry; override with --state or KAAS_STATE_PATH

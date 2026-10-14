@@ -1,12 +1,9 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Stellar-Technology-Services/kaas/internal/sandbox/lifecycle"
 	"github.com/spf13/cobra"
@@ -28,9 +25,13 @@ func newStopCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := loadSandbox(store, name); err != nil {
+			sb, err := loadSandbox(store, name)
+			if err != nil {
 				return err
 			}
+			// Optional repository pre-stop hook (scripts/kaas-prestop): flush app
+			// state before the VM goes away. Never blocks the stop.
+			runPreStopHook(cmd, store, *sb)
 
 			svc := newLifecycleService(store, app)
 			app.Log.Info("stopping sandbox", "name", name)
@@ -38,12 +39,16 @@ func newStopCmd() *cobra.Command {
 				var ee *lifecycle.EgressError
 				if errors.As(err, &ee) {
 					reloadIngressBestEffort(store, app)
+					clearAutoStopDeadline(store, name)
 					printStyled(cmd, styleSuccess, "Stopped sandbox %s; its disk and registry entry are preserved\n", name)
 					return err
 				}
 				return err
 			}
 			reloadIngressBestEffort(store, app)
+			clearAutoStopDeadline(store, name)
+			// Detached guest commands do not survive a VM stop (it is a reboot).
+			_ = store.MarkCommandsLost(name)
 			printStyled(cmd, styleSuccess, "Stopped sandbox %s; its disk and registry entry are preserved\n", name)
 			return nil
 		},
@@ -71,13 +76,7 @@ func newDestroyCmd() *cobra.Command {
 			}
 
 			if !yes {
-				fmt.Fprintf(commandOutput(cmd), "Destroy sandbox %q and permanently delete its VM and data? [y/N] ", name)
-				answer, readErr := bufio.NewReader(os.Stdin).ReadString('\n')
-				if readErr != nil && len(answer) == 0 {
-					return fmt.Errorf("confirmation required (pass -y to skip)")
-				}
-				answer = strings.ToLower(strings.TrimSpace(answer))
-				if answer != "y" && answer != "yes" {
+				if !confirmPrompt(cmd, fmt.Sprintf("Destroy sandbox %q and permanently delete its VM and data? [y/N] ", name)) {
 					printStyled(cmd, styleWarn, "Destroy cancelled\n")
 					return nil
 				}

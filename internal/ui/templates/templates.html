@@ -1,0 +1,51 @@
+{{define "templates"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <div class="row" style="justify-content:space-between;margin-bottom:1rem">
+    <h1 style="margin:0">Templates</h1>
+    <a class="btn" href="/sandboxes/new">New sandbox</a>
+  </div>
+  <p class="muted" style="margin:-.5rem 0 1rem">A template is a <strong>stopped golden sandbox</strong>. <code>kaas up &lt;name&gt; --from &lt;template&gt;</code> clones its disk (toolchains, agents, caches) and skips provision/agents. Rule of thumb: what you would put in a Dockerfile goes in a template; what you would put in <code>.env</code> stays in the contract and SecretSpec. Secrets, egress runtime, and auto-stop are never copied.</p>
+  <table>
+    <thead><tr><th>Template</th><th>Status</th><th>Resources</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+    {{range .Sandboxes}}
+      <tr>
+        <td><a href="/sandboxes/{{.Name}}"><code>{{.Name}}</code></a></td>
+        <td><span class="pill {{.Readiness.Class}}" title="{{.Readiness.Detail}}">{{.Readiness.Label}}{{if .Readiness.Busy}}<span class="spin"></span>{{end}}</span> <span class="muted">{{.ObservedState}}</span></td>
+        <td class="muted">{{.CPUs}} CPU / {{.MemoryGiB}} GiB / {{.DiskGiB}} GiB</td>
+        <td class="muted">{{fmtTime .UpdatedAt}}</td>
+        <td class="row">
+          <a class="btn" href="/sandboxes/new?from={{.Name}}">Deploy from this</a>
+          {{if has .Actions "destroy"}}
+          <details class="popover danger">
+            <summary class="btn">Remove…</summary>
+            <form method="post" action="/sandboxes/{{.Name}}/actions/destroy" class="card">
+              <p class="muted" style="margin:0 0 .5rem">Deletes the template disk. Sandboxes already deployed from it are not affected. Type <code>{{.Name}}</code> to confirm.</p>
+              <label>Confirm <input name="confirm" placeholder="{{.Name}}" required autocomplete="off"></label>
+              <button type="submit" class="bad">Remove template</button>
+            </form>
+          </details>
+          {{end}}
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="5" class="muted">No templates yet. Open a sandbox that has everything installed and use <strong>Save as template…</strong>, or run <code>kaas template save &lt;sandbox&gt; &lt;template&gt;</code>.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}

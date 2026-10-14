@@ -32,8 +32,22 @@
   <div class="card"><div class="label">Services</div><div class="value">{{.ServiceCount}}</div></div>
   <div class="card"><div class="label">Ingress</div><div class="value">{{if .IngressRunning}}<span class="pill ok">up</span>{{else}}<span class="pill bad">down</span>{{end}}</div></div>
   <div class="card"><div class="label">DNS *.{{.Domain}}</div><div class="value">{{if .DNSEnabled}}<span class="pill ok">on</span>{{else}}<span class="pill warn">off</span>{{end}}</div></div>
+  <div class="card"><div class="label">Jobs running</div><div class="value">{{.ActiveJobs}}</div></div>
+  <div class="card"><div class="label">Templates</div><div class="value"><a href="/templates">{{.TemplateCount}}</a></div></div>
 </div>
 <div class="stack">
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="label">Host capacity</div>
+      <a class="btn" href="/sandboxes/new">New sandbox</a>
+    </div>
+    {{with .Capacity}}
+    <div class="meter" title="{{.AllocMemoryGiB}} of {{.HostMemoryGiB}} GiB promised to running sandboxes"><span style="width:{{if gt .MemoryPercent 100}}100{{else}}{{.MemoryPercent}}{{end}}%" class="{{if .Warn}}warn{{end}}"></span></div>
+    <p class="muted" style="margin:.5rem 0 0">
+      {{.RunningCount}} running · {{.AllocCPUs}} / {{.HostCPUs}} vCPU · {{.AllocMemoryGiB}} / {{if .HostMemoryGiB}}{{.HostMemoryGiB}}{{else}}?{{end}} GiB memory{{if .Warn}} · <span class="pill warn">tight</span> stop a sandbox before starting another{{end}}
+    </p>
+    {{end}}
+  </div>
   <div class="card">
     <div class="label">Host tools</div>
     <div style="margin-top:.75rem">

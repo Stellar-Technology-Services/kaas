@@ -45,7 +45,9 @@ func uiOptions(app *App, listen string) (ui.Options, error) {
 		Listen:         listen,
 		StatePath:      app.Config.State.Path,
 		Root:           app.Config.UIRuntime.Root,
+		LogsDir:        app.Config.Paths.LogsDir,
 		IngressRuntime: app.Config.IngressRuntime,
+		Defaults:       app.Config.Defaults,
 		Executable:     exe,
 	}, nil
 }

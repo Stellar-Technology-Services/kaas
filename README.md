@@ -115,11 +115,15 @@ project resource/workspace contract and bootstrap script, then commit both.
 
 ```bash
 kaas up my-app                 # VM, tools, agents, credential mode, setup
+kaas up scratch --size small   # preset from defaults.sizes; no kaas.yaml needed
+kaas up web --repo git@github.com:acme/web.git --trust untrusted
 ```
 
 `kaas up` installs required Ansible Galaxy collections. In `open` mode it uses
 the traditional optional guest-secret phase; in delegated modes it starts the
 host proxy and installs only public/non-secret guest configuration.
+`--trust untrusted` forces `proxy_only` delegated egress so the guest never
+holds a credential value. Prefer a browser? `kaas ui start` and use **New sandbox**.
 
 KaaS provisions the Ubuntu release supplied by Colima. Create a fresh sandbox
 to adopt a newer guest baseline instead of upgrading an existing guest in place.
@@ -139,6 +143,8 @@ kaas secrets deploy my-app
 ```bash
 kaas pubkey my-app             # SSH public key for GitHub
 kaas ssh my-app
+kaas exec my-app --detach -- npm run build    # background command; --status/--attach/--kill by id
+kaas exec my-app --detach -- pi -p 'Add tests for the billing module'
 kaas list
 ```
 
@@ -147,9 +153,17 @@ kaas list
 ```bash
 kaas stop my-app                # stop VM; preserve disk, registry, and contract
 kaas start my-app               # resume a stopped sandbox
+kaas extend my-app --for 4h     # auto-stop 4h from now (default TTL: never)
 kaas destroy my-app             # prompts before permanent deletion
 kaas destroy my-app -y          # skip confirmation
 kaas destroy my-app -y --force  # drop registry even if provider delete fails
+```
+
+Install once, deploy many — a **template** is a stopped golden disk:
+
+```bash
+kaas template save my-app web-stack      # clone the disk; the copy stays stopped
+kaas up feature-a --from web-stack       # skip provision/agents; run secrets, checkout, setup
 ```
 
 Multiple sandboxes get unique SSH ports automatically:
@@ -245,6 +259,9 @@ one credential path over the other and for complete setup instructions.
 ### Defaults and boundaries
 
 - **Guest `$HOME`** comes from Ansible facts (`ansible_user_dir`). Colima/Lima often uses `/home/<user>.guest`, not `/home/<user>`.
+- **Size presets** (`defaults.sizes`): `small` 2 vCPU / 4 GiB / 32 GiB, `large` 8 / 16 / 128; `default` is `defaults.cpus/memory_gib/disk_gib` (4 / 8 / 64). Host config only.
+- **Auto-stop** (`defaults.auto_stop`): built-in `never`. A TTL counts from each start; the UI daemon (`kaas ui start`) enforces deadlines, `kaas extend` changes them. Templates are exempt.
+- **Phase logs** (`paths.logs_dir`): `~/.kaas/logs/<sandbox>/<phase>.log` for provision, agents, pubkey, setup.
 
 ## Commands
 
@@ -268,11 +285,13 @@ available. Paths stay flat (`kaas create`, not `kaas vm create`).
 
 | Command | Description |
 |---|---|
-| `kaas up <name>` | Install dependencies, create VM, provision toolchains, agents, optional secrets, and workspace setup |
-| `kaas create <name>` | Create / start Colima VM |
-| `kaas start [name]` | Start a stopped sandbox with its existing disk and registry entry |
-| `kaas stop [name]` | Stop the Colima VM while preserving its disk and registry entry |
+| `kaas up <name>` | Install dependencies, create VM, provision toolchains, agents, optional secrets, and workspace setup; `--size`, `--repo/--branch`, `--trust`, `--from <template>`, `--auto-stop` |
+| `kaas create <name>` | Create / start Colima VM; `--size`, `--cpus/--memory/--disk`, `--from`, `--auto-stop` |
+| `kaas start [name]` | Start a stopped sandbox with its existing disk and registry entry; re-arms auto-stop |
+| `kaas stop [name]` | Run `scripts/kaas-prestop` if present, then stop the VM while preserving its disk and registry entry |
+| `kaas extend [name] --for <dur>` / `--never` | Set the auto-stop deadline to now + duration, or disable it |
 | `kaas fork <sandbox-id> <new-name>` | Clone an existing sandbox VM under a new name |
+| `kaas template save <sandbox> <template>` / `list` / `rm` | Save a stopped golden disk for `--from` deploys; list or remove templates |
 | `kaas destroy [name]` | Confirm, then delete the VM and registry row; retains registry on provider failure unless `--force` |
 
 ### Guest readiness
@@ -304,6 +323,8 @@ available. Paths stay flat (`kaas create`, not `kaas vm create`).
 | Command | Description |
 |---|---|
 | `kaas ssh [name]` | SSH into the VM |
+| `kaas exec <name> -- <cmd>` | Run a guest command; `--detach`, `--status`, `--attach`, `--kill`, `--history` |
+| `kaas ps [name]` | Busiest guest processes |
 | `kaas cp <source> <destination>` | Copy a file between host and one sandbox |
 | `kaas ping [name]` | Ansible ping |
 | `kaas services list [name]` | List published sandbox services (`*.kaas.test`) |
@@ -312,7 +333,7 @@ available. Paths stay flat (`kaas create`, not `kaas vm create`).
 | `kaas services status` | Show ingress runtime status |
 | `kaas dns enable` / `disable` / `status` | Install or remove local `*.kaas.test` DNS hooks |
 | `kaas ui` / `serve` | Run the localhost management dashboard (foreground) |
-| `kaas ui start` / `stop` / `status` / `open` | Background dashboard daemon |
+| `kaas ui start` / `stop` / `status` / `open` | Background dashboard daemon; its buttons run `kaas … --jsonl` as background jobs |
 
 ### Inspect and diagnose
 
@@ -320,6 +341,7 @@ available. Paths stay flat (`kaas create`, not `kaas vm create`).
 |---|---|
 | `kaas list` | List all sandboxes (`ls`) |
 | `kaas inspect [name]` | Show stored and current facts for a sandbox |
+| `kaas contract show` / `adopt [name]` | Show the persisted contract and drift from the project `kaas.yaml`; explicitly re-adopt |
 | `kaas doctor [name]` | Check host prerequisites and optional sandbox connectivity |
 | `kaas events [name]` | Show recorded sandbox lifecycle events |
 

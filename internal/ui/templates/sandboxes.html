@@ -11,7 +11,10 @@
 <body>
 {{template "nav" .}}
 <main>
-  <h1>Sandboxes</h1>
+  <div class="row" style="justify-content:space-between;margin-bottom:1rem">
+    <h1 style="margin:0">Sandboxes</h1>
+    <a class="btn" href="/sandboxes/new">New sandbox</a>
+  </div>
   <div id="sandboxes"
        hx-get="/partials/sandboxes"
        hx-trigger="every 3s"
@@ -28,22 +31,23 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Desired</th><th>Observed</th><th>SSH</th><th>Resources</th><th>Setup</th><th>Egress</th>
+      <th>Name</th><th>Readiness</th><th>Desired</th><th>Observed</th><th>Auto-stop</th><th>SSH</th><th>Resources</th><th>Egress</th>
     </tr>
   </thead>
   <tbody>
   {{range .Sandboxes}}
     <tr>
       <td><a href="/sandboxes/{{.Name}}"><code>{{.Name}}</code></a></td>
+      <td><span class="pill {{.Readiness.Class}}" title="{{.Readiness.Detail}}">{{.Readiness.Label}}{{if .Readiness.Busy}}<span class="spin"></span>{{end}}</span></td>
       <td><span class="pill">{{emptyDash .DesiredState}}</span></td>
       <td><span class="pill {{if eq .ObservedState "running"}}ok{{else if eq .ObservedState "stopped"}}warn{{else}}{{end}}">{{emptyDash .ObservedState}}</span></td>
+      <td class="muted">{{if .AutoStopIn}}in {{.AutoStopIn}}{{else}}{{.AutoStopTTL}}{{end}}</td>
       <td>{{.SSHPort}}</td>
       <td class="muted">{{.CPUs}} CPU / {{.MemoryGiB}} GiB / {{.DiskGiB}} GiB</td>
-      <td>{{emptyDash .SetupStatus}}</td>
       <td class="muted">{{emptyDash .EgressMode}} {{emptyDash .EgressStatus}}</td>
     </tr>
   {{else}}
-    <tr><td colspan="7" class="muted">No sandboxes registered. Run <code>kaas up &lt;name&gt;</code>.</td></tr>
+    <tr><td colspan="8" class="muted">No sandboxes registered. <a href="/sandboxes/new">Create one</a> or run <code>kaas up &lt;name&gt;</code>.</td></tr>
   {{end}}
   </tbody>
 </table>

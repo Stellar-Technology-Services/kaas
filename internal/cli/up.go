@@ -15,7 +15,8 @@ import (
 )
 
 func newUpCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts upOpts
+	cmd := &cobra.Command{
 		Use:   "up <name>",
 		Short: "Create sandbox VM and provision toolchains",
 		Args:  cobra.ExactArgs(1),
@@ -24,6 +25,17 @@ func newUpCmd() *cobra.Command {
 			app := AppFrom(cmd)
 			if app == nil || app.Config == nil {
 				return fmt.Errorf("app not initialized")
+			}
+			// Ergonomics presets resolve before the contract is persisted so the
+			// sandbox records exactly what the user asked for.
+			if err := applySize(app.Config, opts.Size, &opts.createOpts); err != nil {
+				return err
+			}
+			if err := applyRepo(app.Config, opts.Repo, opts.Branch); err != nil {
+				return err
+			}
+			if err := applyTrust(app.Config, opts.Trust); err != nil {
+				return err
 			}
 			if err := installGalaxyCollections(cmd.Context(), cmd, app); err != nil {
 				if store, openErr := state.Open(app.Config.State.Path); openErr == nil {
@@ -36,16 +48,25 @@ func newUpCmd() *cobra.Command {
 				recordEvent(store, name, "dependencies", "ok", "Ansible Galaxy collections installed")
 				_ = store.Close()
 			}
-			if err := runCreate(cmd.Context(), cmd, name, createOpts{}); err != nil {
-				return err
-			}
-			if err := runProvision(cmd, name, false); err != nil {
-				return err
-			}
-			// `up` is the complete first-boot workflow: provision the base
-			// system, install agents, then deploy the configured credentials.
-			if err := newAgentsCmd().RunE(cmd, []string{name}); err != nil {
-				return fmt.Errorf("install coding agents: %w", err)
+			if opts.From != "" {
+				// Template deploy: the cloned disk already carries toolchains and
+				// agents, so only the per-sandbox phases run (boat: "a named
+				// snapshot holds the disk; the environment holds the settings").
+				if err := deployFromTemplate(cmd.Context(), cmd, opts.From, name, opts.createOpts); err != nil {
+					return err
+				}
+			} else {
+				if err := runCreate(cmd.Context(), cmd, name, opts.createOpts); err != nil {
+					return err
+				}
+				if err := runProvision(cmd, name, false); err != nil {
+					return err
+				}
+				// `up` is the complete first-boot workflow: provision the base
+				// system, install agents, then deploy the configured credentials.
+				if err := newAgentsCmd().RunE(cmd, []string{name}); err != nil {
+					return fmt.Errorf("install coding agents: %w", err)
+				}
 			}
 			if app.Config.Egress.Mode == "" || app.Config.Egress.Mode == "open" {
 				if err := newSecretsDeployCmd().RunE(cmd, []string{name}); err != nil {
@@ -68,9 +89,36 @@ func newUpCmd() *cobra.Command {
 			if _, err := syncSandboxServices(cmd, store, app, name); err != nil {
 				return fmt.Errorf("sync services: %w", err)
 			}
+			if err := armAutoStop(store, name, opts.AutoStop, app.Config.Defaults.AutoStop, cmd.Flags().Changed("auto-stop")); err != nil {
+				return err
+			}
+			printAutoStop(cmd, store, name)
 			return printPublishedURLs(cmd, store, app, name)
 		},
 	}
+	cmd.Flags().StringVar(&opts.Size, "size", "", "resource preset: default, small, large (see defaults.sizes)")
+	cmd.Flags().IntVar(&opts.CPUs, "cpus", 0, "vCPUs (overrides --size and config)")
+	cmd.Flags().IntVar(&opts.Memory, "memory", 0, "memory GiB (overrides --size and config)")
+	cmd.Flags().IntVar(&opts.Disk, "disk", 0, "disk GiB (overrides --size and config)")
+	cmd.Flags().StringVar(&opts.Repo, "repo", "", "git repository to clone as the primary workspace source (no kaas.yaml needed)")
+	cmd.Flags().StringVar(&opts.Branch, "branch", "", "branch for --repo")
+	cmd.Flags().StringVar(&opts.Trust, "trust", "", "credential model: trusted (deploy secrets) or untrusted (proxy_only, no guest secrets)")
+	cmd.Flags().StringVar(&opts.From, "from", "", "clone this template's disk instead of provisioning (see kaas template)")
+	cmd.Flags().StringVar(&opts.AutoStop, "auto-stop", "", "stop automatically this long after each start, e.g. 1h, 2d, or never (default: defaults.auto_stop)")
+	return cmd
+}
+
+// printAutoStop tells the operator when the sandbox will stop, if ever.
+func printAutoStop(cmd *cobra.Command, store *state.Store, name string) {
+	sb, err := store.GetSandbox(name)
+	if err != nil || sb.AutoStopAt == nil {
+		return
+	}
+	if jsonlEnabled(cmd) {
+		emitJSONL("auto_stop", map[string]any{"sandbox": name, "auto_stop_at": sb.AutoStopAt.Format(time.RFC3339), "auto_stop_ttl_seconds": sb.AutoStopTTL})
+		return
+	}
+	printStyled(cmd, styleInfo, "Auto-stop at %s (in %s); kaas extend %s --for <duration> to change\n", sb.AutoStopAt.Local().Format("15:04"), time.Until(*sb.AutoStopAt).Round(time.Minute), name)
 }
 
 func newSetupCmd() *cobra.Command {
@@ -150,6 +198,8 @@ func runWorkspaceSetup(cmd *cobra.Command, name string) error {
 	}
 	runner := newRunner(app)
 	runner.ForwardAgent = app.Config.Workspace.GitAuth == "agent"
+	setupLog := attachPhaseLog(app, runner, name, "setup")
+	defer setupLog.Close()
 	app.Log.Info("running workspace setup", "name", name, "sources", len(sources), "script", "scripts/kaas-setup", "git_auth", app.Config.Workspace.GitAuth)
 
 	checkedOut := 0
@@ -318,6 +368,8 @@ func runProvision(cmd *cobra.Command, name string, check bool) error {
 		return err
 	}
 	runner := newRunner(app)
+	provisionLog := attachPhaseLog(app, runner, name, "provision")
+	defer provisionLog.Close()
 	err = runner.RunPlaybook(cmd.Context(), ansible.PlaybookOpts{
 		Playbook: app.Config.Ansible.Playbooks.Setup,
 		Sandbox:  *sb,

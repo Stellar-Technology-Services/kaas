@@ -35,6 +35,7 @@ internal/ansible/           playbook runner + inventory
 internal/secretspec/        SecretSpec CLI client
 internal/egress/            Delegated egress policy + host proxy
 internal/ingress/           Host HTTP ingress, DNS stub, SSH forwards (`*.kaas.test`)
+internal/ui/                Loopback dashboard: HTMX templates, readiness view-model, background job runner, auto-stop ticker
 internal/sandbox/           port allocation
 internal/sandbox/identity   sandbox identity types, name grammar, constructors, state mapping
 internal/sandbox/lifecycle  create/start/stop/destroy/fork/reconcile; desired vs observed
@@ -57,8 +58,12 @@ remains for local development and syncing with that upstream repository.
 - **CLI output**: `github.com/charmbracelet/lipgloss` for terminal-friendly
   Published URLs / services tables (plain ASCII fallback for `NO_COLOR`,
   `TERM=dumb`, and non-TTY).
-- **State DB**: `modernc.org/sqlite` (pure-Go, no cgo).
+- **State DB**: `modernc.org/sqlite` (pure-Go, no cgo). Migrations are
+  numbered SQL files under `internal/state/migrations/` and apply in order on
+  open (`001` core, `002` services, `003` UI jobs, `004` templates/auto-stop,
+  `005` guest commands).
 - **Tests**: unit tests live beside each package (e.g. `internal/config/config_test.go`).
+  UI tests drive the HTTP server against a fake `kaas` shell script so no VM is needed.
 
 
 ## Releases

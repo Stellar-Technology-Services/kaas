@@ -44,10 +44,18 @@ defaults:
   disk_gib: 64
   arch: aarch64
   ssh_port_base: 6022
+  # Named presets for `kaas up --size <name>` and the UI create form.
+  # "default" always means the cpus/memory_gib/disk_gib above.
+  sizes:
+    small: { cpus: 2, memory_gib: 4, disk_gib: 32 }
+    large: { cpus: 8, memory_gib: 16, disk_gib: 128 }
+  # Default TTL for new sandboxes: "never" (built-in), or 1h, 4h, 2d, … (max 30d).
+  auto_stop: never
 
 paths:
   ansible_dir: ansible
   ssh_key: ~/.colima/_lima/_config/user
+  logs_dir: ~/.kaas/logs      # per-sandbox phase logs (provision, agents, setup, …)
 
 state:
   path: ~/.kaas/state.db
@@ -93,11 +101,21 @@ defaults:
   disk_gib: 120
 ```
 
-Finally, `kaas create` flags override both for that one new sandbox:
+Finally, `kaas create` / `kaas up` flags override both for that one new sandbox:
 
 ```bash
 kaas create benchmark --cpus 12 --memory 32 --disk 200
+kaas up scratch --size small          # preset from defaults.sizes
 ```
+
+### Size presets
+
+`defaults.sizes` names resource bundles for `--size` and the UI's **New
+sandbox** form. Built-ins are `small` (2 / 4 / 32) and `large` (8 / 16 / 128);
+`default` is reserved and always resolves to `defaults.cpus`, `memory_gib`,
+`disk_gib`. Add or replace presets in the **user** config only — project
+`kaas.yaml` may still override just `cpus`, `memory_gib`, and `disk_gib`.
+Explicit `--cpus/--memory/--disk` flags win over a preset.
 
 These values apply when a sandbox is first created. Existing sandboxes retain
 their recorded CPU, memory, and disk settings when stopped and started; create
@@ -312,6 +330,22 @@ set -euo pipefail
 # varlock run -- pnpm db:migrate
 ```
 
+### Optional pre-stop hook
+
+A repository may also ship an executable `scripts/kaas-prestop` next to
+`kaas-setup`. `kaas stop` — and the UI daemon's auto-stop — runs it over SSH
+in the primary workspace directory before the VM stops, so an app can flush
+state that only lives in memory. A failing hook records a `prestop: failed`
+event and the stop proceeds anyway; keep it short and idempotent.
+
+### Templates versus the contract
+
+`kaas template save` captures the **disk** (toolchains, agents, caches, builds);
+the project `kaas.yaml`, the persisted contract, and the SecretSpec profile hold
+the **settings** (sources, services, secret key names, egress policy). Put in a
+template what you would put in a Dockerfile; keep in configuration what you
+would put in `.env`. Credentials never belong on a template disk.
+
 
 ## Project egress policy
 
@@ -353,6 +387,9 @@ is not claimed. See [Delegated Egress](./egress.md).
 | `defaults.disk_gib` | `64` | VM disk (GiB) |
 | `defaults.arch` | `aarch64` | VM architecture |
 | `defaults.ssh_port_base` | `6022` | First SSH port allocated for sandboxes |
+| `defaults.sizes` | `small`, `large` | Named presets for `--size` / the UI form (`cpus`, `memory_gib`, `disk_gib`); `default` = the three keys above. User config only |
+| `defaults.auto_stop` | `never` | Default TTL for new sandboxes (`1h`, `2d`, `never`; max 30d). The UI daemon enforces deadlines; `kaas extend` changes them |
+| `paths.logs_dir` | `~/.kaas/logs` | Per-sandbox phase logs written by provision/agents/setup; shown on the UI sandbox page |
 | `paths.ansible_dir` | `ansible` | Directory containing `ansible.cfg` and playbooks (default resolves to `~/.kaas/ansible`, cloned by `kaas init` from git — see the [FAQ](../faq.md#ansible-directory-and-git)) |
 | `paths.ssh_key` | `~/.colima/_lima/_config/user` | Colima SSH identity |
 | `state.path` | `~/.kaas/state.db` | SQLite registry. Relative paths resolve under `~/.kaas`, not the caller's CWD. |

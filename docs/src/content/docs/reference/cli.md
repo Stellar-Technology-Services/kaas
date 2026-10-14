@@ -27,11 +27,14 @@ stay flat (`kaas create`, not `kaas vm create`).
 
 | Command | Description |
 |---|---|
-| `kaas up <name>` | Install dependencies, create VM, provision toolchains, agents, optional secrets, and workspace setup |
-| `kaas create <name>` | Create / start Colima VM |
-| `kaas start [name]` | Start a stopped sandbox with its existing disk and registry entry |
-| `kaas stop [name]` | Stop the Colima VM while preserving its disk and registry entry |
+| `kaas up <name>` | Install dependencies, create VM, provision toolchains, agents, optional secrets, and workspace setup; `--size`, `--cpus/--memory/--disk`, `--repo/--branch`, `--trust`, `--from <template>`, `--auto-stop` |
+| `kaas create <name>` | Create / start Colima VM; `--size`, `--port`, `--cpus/--memory/--disk/--arch`, `--from <template>`, `--auto-stop` |
+| `kaas start [name]` | Start a stopped sandbox with its existing disk and registry entry; re-arms auto-stop; `--auto-stop` changes the TTL |
+| `kaas stop [name]` | Run `scripts/kaas-prestop` if present, then stop the Colima VM while preserving its disk and registry entry |
+| `kaas extend [name] --for <dur>` / `--never` | Set the auto-stop deadline to now + duration (remaining time, not additive), or disable it |
 | `kaas fork <sandbox-id> <new-name>` | Clone an existing sandbox VM under a new name |
+| `kaas template save <sandbox> <template>` | Clone a sandbox's disk as a stopped **template** for `--from` (saving the same name again replaces it) |
+| `kaas template list` / `rm <template>` | List templates; delete one (`-y` skips confirmation) |
 | `kaas destroy [name]` | Confirm, then delete the Colima VM and registry row (retains registry if provider delete fails; `--force` drops registry anyway) |
 
 ### Guest readiness
@@ -63,6 +66,8 @@ stay flat (`kaas create`, not `kaas vm create`).
 | Command | Description |
 |---|---|
 | `kaas ssh [name]` | SSH into the VM |
+| `kaas exec <name> -- <cmd>` | Run a command in the guest; `--detach`, `--status <id>`, `--attach <id>`, `--kill <id>`, `--history`, `--cwd`, `--timeout` |
+| `kaas ps [name]` | List the busiest guest processes |
 | `kaas cp <source> <destination>` | Copy a file between host and one sandbox |
 | `kaas ping [name]` | Ansible ping |
 | `kaas services list [name]` | List published sandbox services |
@@ -74,7 +79,7 @@ stay flat (`kaas create`, not `kaas vm create`).
 | `kaas dns status` | Show whether DNS hooks are installed |
 | `kaas ingress serve` | Run host ingress/DNS (normally lifecycle-managed) |
 | `kaas ui` / `serve` | Localhost management dashboard (foreground; default `127.0.0.1:18181`) |
-| `kaas ui start` / `stop` / `status` / `open` | Background dashboard daemon |
+| `kaas ui start` / `stop` / `status` / `open` | Background dashboard daemon; the UI's lifecycle buttons run `kaas … --jsonl` as background jobs |
 
 ### Inspect and diagnose
 
@@ -82,6 +87,8 @@ stay flat (`kaas create`, not `kaas vm create`).
 |---|---|
 | `kaas list` | List all sandboxes (`ls`) |
 | `kaas inspect [name]` | Show stored and current facts for a sandbox |
+| `kaas contract show [name]` | Print the persisted redacted contract and any drift from the project `kaas.yaml` |
+| `kaas contract adopt [name]` | Explicitly replace the persisted contract with the current project stack (reconcile) |
 | `kaas doctor [name]` | Check host prerequisites and optional sandbox connectivity |
 | `kaas events [name]` | Show recorded sandbox lifecycle events |
 
@@ -124,11 +131,33 @@ the same effective configuration and sources.
 
 ## Command options and aliases
 
+`kaas up` accepts the same sizing flags as `create` plus a few ergonomics
+presets so a sandbox needs no project `kaas.yaml`:
+
+```bash
+kaas up scratch --size small                          # 2 vCPU / 4 GiB / 32 GiB
+kaas up web --repo git@github.com:acme/web.git --branch main
+kaas up vendor-eval --trust untrusted                 # proxy_only, no guest secrets
+```
+
+- `--size <name>` picks a preset from `defaults.sizes` (`small`, `large`, …);
+  `default` means `defaults.cpus/memory_gib/disk_gib`. Explicit `--cpus`,
+  `--memory`, `--disk` still override the preset.
+- `--repo <url> [--branch <b>]` makes that repository the primary
+  `workspace.sources[0]`, cloned under `~/workspace/<repo>`. It is recorded in
+  the persisted contract like any project source.
+- `--trust untrusted` forces delegated egress in `proxy_only` mode with a
+  default-deny policy. When the project declares no egress rules, GitHub hosts
+  are allowed **without** credential injection so checkout works. `--trust
+  trusted` (the default) keeps the configured behaviour (`kaas secrets deploy`
+  into the guest in `open` mode).
+
 `kaas create` accepts VM sizing overrides. Values not supplied on the command
-line come from `kaas.yaml` (or the built-in defaults):
+line come from `--size`, then `kaas.yaml` (or the built-in defaults):
 
 ```bash
 kaas create my-app --port 6025 --cpus 6 --memory 12 --disk 80 --arch aarch64
+kaas create scratch --size small
 ```
 
 - `--port` sets the host SSH port; otherwise the next available port starting
@@ -170,6 +199,49 @@ KaaS uses the stored SSH host, port, user, and Colima identity for that
 sandbox, then invokes `scp` with strict host-key checking (`accept-new`).
 Exactly one path must be remote; copying between two sandboxes is not supported
 by this command. Quote paths with spaces in the shell as usual.
+
+## Commands in the guest (`kaas exec`, `kaas ps`)
+
+`kaas exec` runs a shell command over SSH without opening an interactive
+session. Detached commands (boat.dev's "background commands") keep running
+after your shell closes; their output is written on the **guest** disk under
+`~/.kaas-runs/<id>.log`, so it survives a stop/start, while the host registry
+keeps an index row (`sandbox_commands`).
+
+```bash
+kaas exec my-app -- make test                              # synchronous; exit code propagates
+kaas exec my-app --cwd ~/workspace/app --timeout 10m -- bash ./setup.sh
+id=$(kaas exec my-app --detach --jsonl -- npm run build | jq -r 'select(.type=="command") | .id')
+kaas exec my-app --status "$id"                            # running | exited N | killed | lost, plus log tail
+kaas exec my-app --attach "$id"                            # stream the log until it ends; exits with its code
+kaas exec my-app --kill "$id"                              # SIGTERM the process group, SIGKILL after 5 s
+kaas exec my-app --history                                 # recorded commands with exit codes
+kaas ps my-app                                             # busiest processes (pid, cpu, rss, user, elapsed)
+```
+
+- `--cwd` defaults to the primary workspace directory, else `$HOME`.
+- Detached commands start in their own session (`setsid`) so `--kill` reaches
+  every child. A VM stop ends them like a reboot; `kaas stop` marks running
+  rows `lost`. Make long-lived servers systemd units instead (see
+  [Local services](../guides/services.md#keep-a-service-running)).
+- `--jsonl` emits one `command` record per row (`id`, `status`, `exit_code`,
+  `pid`, `tail`), and `kaas ps --jsonl` a `processes` record; the UI polls these.
+
+### Prompting an agent without a terminal
+
+The installed harnesses accept a prompt in non-interactive mode, so a turn can
+run detached and be read back later:
+
+```bash
+kaas exec my-app --cwd ~/workspace/app --detach -- pi -p 'Add tests for the billing module'
+kaas exec my-app --attach <id>
+```
+
+The UI's **Prompt an agent** box does exactly this for `pi`, `omp`, and
+`prime-agent`. Conversation memory is the harness's own session directory on
+the guest disk — nothing is stored on the host — so it survives stop, start,
+fork, and template deploys. Connect credentials first (`kaas secrets deploy` or
+delegated egress); the sandbox page shows a **creds** chip with the fix command.
 
 ## Host dependencies
 
@@ -255,8 +327,11 @@ kaas ui open
 kaas ui stop
 ```
 
-Loopback-only management console (HTMX + embedded templates). Host-owned
-`ui_runtime` in `~/.kaas/kaas.yaml`. See [Local web UI](../guides/ui.md).
+Loopback-only management console (HTMX + embedded templates). Lifecycle buttons
+(start/stop/fork/destroy/setup/sync) and the **New sandbox** form each start one
+`kaas <verb> … --jsonl` background job, recorded in the `jobs` table with a log
+under `~/.kaas/ui/jobs/`. Host-owned `ui_runtime` in `~/.kaas/kaas.yaml`. See
+[Local web UI](../guides/ui.md).
 
 ## Machine lifecycle
 
@@ -303,9 +378,80 @@ kaas ssh my-app-copy
 `fork` briefly stops the source because Lima cannot clone a running instance,
 then clones the guest disk and configuration, allocates a new SSH port, and
 registers the new sandbox. The source is restored to its exact prior observed
-state. SecretSpec values and host egress runtime are not copied; run
-`kaas secrets deploy my-app-copy` (or `kaas egress configure`) after setting
-any desired overrides.
+state. SecretSpec values, host egress runtime, and the auto-stop TTL are not
+copied; run `kaas secrets deploy my-app-copy` (or `kaas egress configure`)
+after setting any desired overrides.
+
+## Templates (`--from`)
+
+Lima has no live snapshots on the VZ driver, so kaas's equivalent of a cloud
+"named snapshot" is a **stopped golden sandbox** marked as a template. Install
+everything once, save it, and deploy copies without re-running provision or
+agents:
+
+```bash
+kaas up golden --size large          # provision toolchains + agents once
+kaas template save golden web-stack  # clone the disk; the copy stays stopped
+kaas up feature-a --from web-stack   # clone + secrets/egress + checkout + setup
+kaas up feature-b --from web-stack --repo git@github.com:acme/b.git
+kaas template list
+kaas template rm web-stack -y
+```
+
+- `template save` stops the source briefly (like `fork`), clones it, stops the
+  clone, and tags it `role=template`. Saving the same name again replaces the
+  template; sandboxes already deployed from it are unaffected.
+- `--from` works on `up` and `create`. The new sandbox records
+  `provision`/`agents` as **skipped** in its events; `up` still runs
+  secrets/egress, checkout, setup, and service sync so each copy gets its own
+  credentials and workspace.
+- A template holds the **disk**; the contract and SecretSpec profile hold the
+  **settings**. Nothing credential-bearing is copied from the template or from
+  its source — put secrets in SecretSpec, never on a template disk.
+- Templates are never auto-stopped and cannot be started directly (`kaas start`
+  refuses; deploy from them instead). They appear in `kaas list`; the UI shows
+  them on a separate **Templates** page.
+- Clone time depends on the Lima driver and filesystem; measure
+  `kaas template save` on your host before planning many parallel deploys.
+
+## Auto-stop
+
+Every sandbox can carry a TTL. The deadline is **now + TTL at each start**, not
+from last activity; it is cleared on stop and re-armed on the next start.
+Templates are exempt. The built-in default is `never` (today's behaviour); set
+`defaults.auto_stop: 1h` in `~/.kaas/kaas.yaml` to make new sandboxes expire.
+
+```bash
+kaas up scratch --auto-stop 4h       # stops 4h after it comes up
+kaas extend scratch --for 12h        # new deadline = now + 12h; TTL kept for later starts
+kaas extend scratch --never          # disable
+kaas start scratch --auto-stop 2d    # change the TTL on resume
+```
+
+`--for` and `--auto-stop` accept Go durations (`90m`, `4h`), whole days (`2d`),
+or `never`; the maximum is 30 days. Enforcement runs in the UI daemon
+(`kaas ui start`): every 30 s it starts a `kaas stop` job for overdue
+sandboxes that have no job in flight. Without the daemon the deadline is
+recorded but nothing stops the VM.
+
+## Pre-stop hook
+
+If the primary workspace directory contains an executable
+`scripts/kaas-prestop`, `kaas stop` (including auto-stop) runs it over SSH
+first — a chance to flush state that lives only in memory. Failure is recorded
+as a `prestop` event and never blocks the stop.
+
+## Contract drift
+
+```bash
+kaas contract show my-app     # persisted contract + field-level drift from the project kaas.yaml
+kaas contract adopt my-app    # accept the project stack as the new contract
+```
+
+Resume commands keep using the persisted contract even when the project
+`kaas.yaml` changes; `contract show` lists the differences and `contract adopt`
+is the explicit reconcile. The UI shows the same drift on the sandbox page with
+a **Re-adopt** button.
 
 ## `up` readiness phases
 
@@ -318,7 +464,10 @@ create → dependencies → provision → agents → secrets/egress → checkout
 ```
 
 Galaxy dependency installation is automatic. Empty optional SecretSpec values
-produce a successful `secrets: skipped` event. After fixing a prerequisite, use
+produce a successful `secrets: skipped` event. Each Ansible/SSH phase also tees
+its output to `<paths.logs_dir>/<sandbox>/<phase>.log` (default
+`~/.kaas/logs/…`) so a failure can be read later from the UI or the shell.
+After fixing a prerequisite, use
 `kaas doctor <name>`, inspect the event trail, and rerun the relevant stage
 command (`provision`, `agents`, `setup`, `secrets deploy`, …) or rerun
 `kaas up <name>`.

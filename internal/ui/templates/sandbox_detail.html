@@ -11,28 +11,102 @@
 <body>
 {{template "nav" .}}
 <main>
-{{with .Sandbox}}
-  <div class="row" style="justify-content:space-between;margin-bottom:1rem">
-    <h1 style="margin:0"><code>{{.Name}}</code></h1>
-    <form method="post" action="/sandboxes/{{.Name}}/sync">
-      <button type="submit">Sync services</button>
-    </form>
+  <div id="sandbox-status"
+       {{if .Job}}hx-get="/partials/sandboxes/{{.Sandbox.Name}}/status" hx-trigger="every 3s" hx-swap="innerHTML"{{end}}>
+    {{template "partial_sandbox_status" .}}
   </div>
-  <div class="grid">
-    <div class="card"><div class="label">Desired</div><div class="value" style="font-size:1rem">{{emptyDash .DesiredState}}</div></div>
-    <div class="card"><div class="label">Observed</div><div class="value" style="font-size:1rem">{{emptyDash .ObservedState}}</div></div>
-    <div class="card"><div class="label">SSH</div><div class="value" style="font-size:1rem">{{.SSHPort}}</div></div>
-    <div class="card"><div class="label">Resources</div><div class="value" style="font-size:1rem">{{.CPUs}}/{{.MemoryGiB}}/{{.DiskGiB}}</div></div>
+  {{if .Job}}{{template "partial_job" .}}{{end}}
+
+  <div class="grid two">
+    <div class="card">
+      <div class="label">Connect</div>
+      <div class="connect">
+      {{range .Connect}}
+        <div class="row cmd"><code>{{.}}</code><button type="button" class="copy" data-copy="{{.}}" title="Copy">copy</button></div>
+      {{end}}
+      </div>
+      <p class="muted" style="margin:.6rem 0 0">{{if .HerdrOnPath}}<code>herdr</code> is on PATH — paste the ssh line into a new pane.{{else}}Paste into any terminal. <code>kaas deps --install --optional</code> adds herdr.{{end}}</p>
+    </div>
+    <div class="card">
+      <div class="label">Workspace</div>
+      {{with .Sandbox}}
+      <p style="margin:.5rem 0 0">{{emptyDash .Workspace}}</p>
+      <p class="muted" style="margin:.35rem 0 0">guest dir {{emptyDash .WorkspaceDir}} · repo path {{emptyDash .RepoPath}}</p>
+      <p class="muted" style="margin:.35rem 0 0">setup {{emptyDash .SetupStatus}} · egress {{emptyDash .EgressMode}} {{emptyDash .EgressStatus}}</p>
+      {{end}}
+      {{if .ContractHash}}<p class="muted" style="margin:.35rem 0 0">contract <code>{{$.ContractHash}}</code></p>{{end}}
+    </div>
   </div>
-  <div class="card" style="margin-bottom:1rem">
-    <div class="label">Workspace</div>
-    <p style="margin:.5rem 0 0">{{emptyDash .Workspace}}</p>
-    <p class="muted" style="margin:.35rem 0 0">repo path {{emptyDash .RepoPath}} · setup {{emptyDash .SetupStatus}} · egress {{emptyDash .EgressMode}}</p>
-    {{if $.ContractHash}}<p class="muted" style="margin:.35rem 0 0">contract <code>{{$.ContractHash}}</code></p>{{end}}
+
+  <div class="grid two">
+    <div class="card">
+      <div class="label">Environment <span class="muted" style="text-transform:none;letter-spacing:0">(what this machine may use — from the persisted contract)</span></div>
+      {{with .Environment}}
+      <dl class="kv">
+        <dt>Contract</dt><dd><code>{{.Hash}}</code></dd>
+        <dt>Sources</dt><dd>{{if .Sources}}<ul class="plain">{{range .Sources}}<li><code>{{emptyDash .Repository}}</code>{{if .Branch}} @ {{.Branch}}{{end}} → {{.Directory}}</li>{{end}}</ul>{{else}}<span class="muted">none</span>{{end}}</dd>
+        <dt>Services</dt><dd>{{if .Services}}{{range .Services}}<span class="pill">{{.Name}} :{{.Port}}</span> {{end}}{{else}}<span class="muted">none</span>{{end}}</dd>
+        <dt>Secrets</dt><dd>{{emptyDash .SecretMode}}{{if .SecretKeys}} · keys: {{range .SecretKeys}}<code>{{.}}</code> {{end}}{{end}} <span class="muted">(names only; values never leave SecretSpec)</span></dd>
+        <dt>Egress</dt><dd>{{if .EgressMode}}<span class="pill {{if eq .EgressMode "proxy_only"}}ok{{end}}">{{.EgressMode}}</span>{{if .EgressDeny}} default deny{{end}}{{if .EgressHosts}}<ul class="plain">{{range .EgressHosts}}<li><code>{{.Host}}</code>{{if .Credential}} <span class="muted">← {{.Credential}}</span>{{end}}</li>{{end}}</ul>{{end}}{{else}}<span class="muted">open</span>{{end}}</dd>
+        <dt>Drift</dt><dd>
+          {{if not .DriftChecked}}<span class="muted">no project directory recorded</span>
+          {{else if .DriftError}}<span class="pill warn">unknown</span> <span class="muted">{{.DriftError}}</span>
+          {{else if .Drift}}<span class="pill warn">{{len .Drift}} change(s)</span> <span class="muted">project kaas.yaml differs from this contract; resume keeps the contract until you re-adopt</span>
+            <ul class="plain">{{range .Drift}}<li><code>{{.Path}}</code>: {{.From}} → {{.To}}</li>{{end}}</ul>
+            {{if has $.Sandbox.Actions "adopt"}}<form method="post" action="/sandboxes/{{$.Sandbox.Name}}/actions/adopt" style="margin-top:.4rem"><button type="submit">Re-adopt from project</button></form>{{end}}
+          {{else}}<span class="pill ok">in sync</span>{{end}}
+        </dd>
+      </dl>
+      {{else}}<p class="muted" style="margin:.5rem 0 0">No contract persisted yet; the next resume adopts one.</p>{{end}}
+    </div>
+    <div class="card">
+      <div class="label">Phase logs</div>
+      {{if .PhaseLogs}}
+      <ul class="plain">
+      {{range .PhaseLogs}}<li><a href="/sandboxes/{{$.Sandbox.Name}}/logs/{{.Phase}}"><code>{{.Phase}}</code></a> <span class="muted">{{kib .Size}} · {{fmtTime .Modified}}</span></li>{{end}}
+      </ul>
+      {{with index .PhaseLogs 0}}{{if .Tail}}<div class="muted" style="margin-top:.5rem">latest: <code>{{.Phase}}</code></div><pre class="log">{{range .Tail}}{{.}}
+{{end}}</pre>{{end}}{{end}}
+      {{else}}<p class="muted" style="margin:.5rem 0 0">No captured output yet. Provision, agents, and setup write to <code>~/.kaas/logs/{{.Sandbox.Name}}/</code> on their next run.</p>{{end}}
+    </div>
   </div>
-{{end}}
+
   <h1 style="font-size:1.05rem">Published URLs</h1>
   {{template "partial_services" .}}
+  {{if .Units}}
+  <details style="margin-top:.5rem">
+    <summary class="muted">A declared service is not listening. A process started by hand does not come back after stop/start — make it a systemd unit (snippets below).</summary>
+    {{range $name, $unit := .Units}}<div class="muted" style="margin-top:.5rem"><code>{{$name}}</code></div><pre class="log">{{$unit}}</pre>{{end}}
+  </details>
+  {{end}}
+
+  {{if not .Sandbox.IsTemplate}}
+  <h1 id="commands" style="font-size:1.05rem;margin-top:1.25rem">Run in the guest</h1>
+  <div class="grid two">
+    <form method="post" action="/sandboxes/{{.Sandbox.Name}}/commands" class="card form" style="gap:.6rem">
+      <div class="label">Command <span class="muted" style="text-transform:none;letter-spacing:0">(detached; output stays on the guest disk)</span></div>
+      <label>Working directory <input name="cwd" value="{{.Sandbox.WorkspaceDir}}" placeholder="~"></label>
+      <label>Shell command <input name="command" placeholder="npm run build" required autocomplete="off"></label>
+      <div class="row"><button type="submit" {{if ne .Sandbox.ObservedState "running"}}disabled title="sandbox is not running"{{end}}>Run detached</button><span class="muted">= <code>kaas exec {{.Sandbox.Name}} --detach -- …</code></span></div>
+    </form>
+    <form method="post" action="/sandboxes/{{.Sandbox.Name}}/prompt" class="card form" style="gap:.6rem">
+      <div class="label">Prompt an agent <span class="muted" style="text-transform:none;letter-spacing:0">(runs <code>&lt;harness&gt; -p …</code> in the workspace)</span></div>
+      <label>Harness <select name="harness">{{range .Harnesses}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+      <label>Prompt <textarea name="prompt" rows="3" placeholder="Add tests for the billing module" required></textarea></label>
+      <div class="row"><button type="submit" {{if ne .Sandbox.ObservedState "running"}}disabled title="sandbox is not running"{{end}}>Send prompt</button><span class="muted">needs credentials: <span class="pill {{.Sandbox.Credentials.Class}}">{{.Sandbox.Credentials.Label}}</span></span></div>
+    </form>
+  </div>
+  <div id="command-list" hx-get="/partials/sandboxes/{{.Sandbox.Name}}/commands" hx-trigger="load, every 4s" hx-swap="innerHTML">
+    {{template "partial_commands" .}}
+  </div>
+  <details style="margin-top:1rem">
+    <summary class="btn">Processes (busiest first)</summary>
+    <div hx-get="/partials/sandboxes/{{.Sandbox.Name}}/processes" hx-trigger="toggle from:closest details, every 10s" hx-swap="innerHTML"><p class="muted">Loading…</p></div>
+  </details>
+  {{end}}
+
+  <h1 style="font-size:1.05rem;margin-top:1.25rem">Recent jobs</h1>
+  {{template "partial_jobs_table" .}}
   <h1 style="font-size:1.05rem;margin-top:1.25rem">Recent events</h1>
   <table>
     <thead><tr><th>Time</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
@@ -49,6 +123,147 @@
     {{end}}
     </tbody>
   </table>
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+<script>
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('button.copy'); if (!b) return;
+  navigator.clipboard.writeText(b.dataset.copy).then(function () {
+    var t = b.textContent; b.textContent = 'copied'; setTimeout(function () { b.textContent = t; }, 1200);
+  });
+});
+</script>
+</body>
+</html>
+{{end}}
+
+{{define "partial_commands"}}
+<table style="margin-top:.75rem">
+  <thead><tr><th>Started</th><th>ID</th><th>Status</th><th>Command</th><th></th></tr></thead>
+  <tbody>
+  {{range .Commands}}
+    <tr>
+      <td class="muted">{{fmtTime .StartedAt}}</td>
+      <td><code>{{.ID}}</code></td>
+      <td><span class="pill {{if .Running}}warn{{else if eq .ExitCode "0"}}ok{{else if eq .Status "killed"}}{{else if eq .Status "lost"}}{{else}}bad{{end}}">{{.Status}}{{if .ExitCode}} {{.ExitCode}}{{end}}{{if .Running}}<span class="spin"></span>{{end}}</span></td>
+      <td><code>{{.Command}}</code> <span class="muted">in {{emptyDash .Cwd}}</span>
+        {{if .Tail}}<pre class="log" style="max-height:10rem">{{range .Tail}}{{.}}
+{{end}}</pre>{{end}}</td>
+      <td>{{if .Running}}<form method="post" action="/sandboxes/{{$.Sandbox.Name}}/commands/{{.ID}}/kill"><button type="submit" class="bad" title="SIGTERM the process group, SIGKILL after 5s">Kill</button></form>{{end}}
+        <div class="muted" style="font-size:.75rem;margin-top:.3rem"><code>kaas exec {{$.Sandbox.Name}} --attach {{.ID}}</code></div></td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="muted">No commands yet. Detached commands keep running when your shell closes; a VM stop ends them (their logs stay under <code>~/.kaas-runs/</code> in the guest).</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+{{define "partial_processes"}}
+{{if .Error}}<p class="muted">{{.Error}}</p>{{else}}
+<table style="margin-top:.5rem">
+  <thead><tr><th>PID</th><th>CPU %</th><th>Mem MB</th><th>User</th><th>Elapsed</th><th>Command</th></tr></thead>
+  <tbody>
+  {{range .Processes}}<tr><td>{{.PID}}</td><td>{{.CPU}}</td><td>{{.MemoryMB}}</td><td class="muted">{{.User}}</td><td class="muted">{{.Elapsed}}</td><td><code>{{.Command}}</code></td></tr>
+  {{else}}<tr><td colspan="6" class="muted">No processes reported.</td></tr>{{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}
+
+{{define "partial_sandbox_status"}}
+{{with .Sandbox}}
+  <div class="row" style="justify-content:space-between;margin-bottom:1rem">
+    <div class="row">
+      <h1 style="margin:0"><code>{{.Name}}</code></h1>
+      <span class="pill big {{.Readiness.Class}}" title="{{.Readiness.Detail}}">{{.Readiness.Label}}{{if .Readiness.Busy}}<span class="spin"></span>{{end}}</span>
+      <span class="muted">{{.Readiness.Detail}}</span>
+      {{if not .IsTemplate}}<span class="pill {{.Credentials.Class}}" title="{{if .Credentials.Fix}}{{.Credentials.Fix}}{{else}}credentials ready{{end}}">creds: {{.Credentials.Label}}</span>{{if .Credentials.Fix}}<code class="muted" style="font-size:.75rem">{{.Credentials.Fix}}</code>{{end}}{{end}}
+    </div>
+    <div class="row actions">
+      {{if has .Actions "start"}}<form method="post" action="/sandboxes/{{.Name}}/actions/start"><button type="submit">Start</button></form>{{end}}
+      {{if has .Actions "stop"}}<form method="post" action="/sandboxes/{{.Name}}/actions/stop"><button type="submit">Stop</button></form>{{end}}
+      {{if has .Actions "setup"}}<form method="post" action="/sandboxes/{{.Name}}/actions/setup"><button type="submit" title="Re-run checkout + scripts/kaas-setup">Re-run setup</button></form>{{end}}
+      {{if has .Actions "sync"}}<form method="post" action="/sandboxes/{{.Name}}/actions/sync"><button type="submit">Sync services</button></form>{{end}}
+      {{if has .Actions "fork"}}
+      <details class="popover">
+        <summary class="btn">Fork…</summary>
+        <form method="post" action="/sandboxes/{{.Name}}/actions/fork" class="card">
+          <p class="muted" style="margin:0 0 .5rem">Source <code>{{.Name}}</code> is <strong>stopped briefly</strong> for the clone (Lima cannot clone a running VM) and then restored to its current state. Secrets and egress are <strong>not</strong> copied — run <code>kaas secrets deploy</code> or <code>kaas egress configure</code> on the fork.</p>
+          <label>New name <input name="target" value="{{.Name}}-copy" required pattern="[a-z0-9-]+"></label>
+          <button type="submit">Fork</button>
+        </form>
+      </details>
+      {{end}}
+      {{if has .Actions "template"}}
+      <details class="popover">
+        <summary class="btn">Save as template…</summary>
+        <form method="post" action="/sandboxes/{{.Name}}/actions/template" class="card">
+          <p class="muted" style="margin:0 0 .5rem">Clones this disk under a template name and keeps the copy <strong>stopped</strong>. <code>{{.Name}}</code> pauses briefly for the clone. Deploy later with <code>kaas up &lt;new&gt; --from &lt;template&gt;</code>; saving the same name again replaces it.</p>
+          <label>Template name <input name="target" value="tpl-{{.Name}}" required pattern="[a-z0-9-]+"></label>
+          <button type="submit">Save template</button>
+        </form>
+      </details>
+      {{end}}
+      {{if has .Actions "destroy"}}
+      <details class="popover danger">
+        <summary class="btn">Destroy…</summary>
+        <form method="post" action="/sandboxes/{{.Name}}/actions/destroy" class="card">
+          <p class="muted" style="margin:0 0 .5rem">Deletes the VM and its disk permanently. Type <code>{{.Name}}</code> to confirm.</p>
+          <label>Confirm <input name="confirm" placeholder="{{.Name}}" required autocomplete="off"></label>
+          <label class="muted"><input type="checkbox" name="force"> force: drop the registry row even if the provider delete fails</label>
+          <button type="submit" class="bad">Destroy</button>
+        </form>
+      </details>
+      {{end}}
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="label">Desired</div><div class="value" style="font-size:1rem">{{emptyDash .DesiredState}}</div></div>
+    <div class="card"><div class="label">Observed</div><div class="value" style="font-size:1rem">{{emptyDash .ObservedState}}</div></div>
+    <div class="card"><div class="label">SSH port</div><div class="value" style="font-size:1rem">{{.SSHPort}}</div></div>
+    <div class="card"><div class="label">Resources</div><div class="value" style="font-size:1rem">{{.CPUs}} CPU · {{.MemoryGiB}} GiB · {{.DiskGiB}} GiB</div></div>
+    {{if not .IsTemplate}}
+    <div class="card"><div class="label">Auto-stop</div>
+      <div class="value" style="font-size:1rem">{{if .AutoStopIn}}in {{.AutoStopIn}}{{else}}{{.AutoStopTTL}}{{end}}</div>
+      {{if .AutoStopIn}}<div class="muted" style="font-size:.78rem">{{fmtTime .AutoStopAt}} · TTL {{.AutoStopTTL}}</div>{{end}}
+      {{if has .Actions "extend"}}
+      <form method="post" action="/sandboxes/{{.Name}}/actions/extend" class="inline-form" style="margin-top:.4rem">
+        <select name="for"><option value="1h">+1h from now</option><option value="4h" selected>+4h</option><option value="12h">+12h</option><option value="1d">+1d</option><option value="never">never</option></select>
+        <button type="submit" title="Sets the remaining time; it does not add to it">Extend</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+{{end}}
+{{end}}
+
+{{define "sandbox_pending"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <div class="row" style="margin-bottom:1rem">
+    <h1 style="margin:0"><code>{{.Title}}</code></h1>
+    {{if .Job}}{{if .Job.Active}}<span class="pill big warn">Creating<span class="spin"></span></span>{{else}}<span class="pill big bad">Not registered</span>{{end}}{{end}}
+  </div>
+  {{if .Job}}
+    {{if .Job.Active}}
+    <div hx-get="/sandboxes/{{.Title}}" hx-trigger="every 4s" hx-select="main" hx-target="main" hx-swap="outerHTML"></div>
+    {{end}}
+    {{template "partial_job" .}}
+  {{end}}
+  {{if .Jobs}}<h1 style="font-size:1.05rem;margin-top:1.25rem">Jobs for this name</h1>{{template "partial_jobs_table" .}}{{end}}
+  <p class="muted">Not here yet? <a href="/sandboxes">All sandboxes</a> · <a href="/sandboxes/new">New sandbox</a></p>
   <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
 </main>
 </body>

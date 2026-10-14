@@ -23,7 +23,8 @@ type createOpts struct {
 }
 
 func newStartCmd() *cobra.Command {
-	return &cobra.Command{
+	var autoStop string
+	cmd := &cobra.Command{
 		Use:   "start [name]",
 		Short: "Start a stopped sandbox while preserving its existing state",
 		Args:  cobra.MaximumNArgs(1),
@@ -40,6 +41,9 @@ func newStartCmd() *cobra.Command {
 			sb, err := loadSandbox(store, name)
 			if err != nil {
 				return err
+			}
+			if sb.IsTemplate() {
+				return fmt.Errorf("%q is a template; deploy a sandbox from it with: kaas up <name> --from %s", name, name)
 			}
 			crepo := contract.NewStoreRepository(store)
 			if c, adopted, err := ensureContract(cmd.Context(), app, name, crepo); err != nil {
@@ -65,24 +69,59 @@ func newStartCmd() *cobra.Command {
 			if _, err := syncSandboxServices(cmd, store, app, name); err != nil {
 				return fmt.Errorf("sync services: %w", err)
 			}
+			// Each start re-arms the deadline from the stored TTL (boat semantics).
+			if err := armAutoStop(store, name, autoStop, "", cmd.Flags().Changed("auto-stop")); err != nil {
+				return err
+			}
 			printStyled(cmd, styleSuccess, "Started sandbox %s (port %d)\n", name, sb.SSHPort)
+			printAutoStop(cmd, store, name)
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&autoStop, "auto-stop", "", "change the TTL for this and later starts, e.g. 4h or never")
+	return cmd
 }
 
 func newCreateCmd() *cobra.Command {
 	var opts createOpts
+	var size, from, autoStop string
 
 	cmd := &cobra.Command{
 		Use:   "create <name>",
 		Short: "Create or start a Colima sandbox VM",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCreate(cmd.Context(), cmd, args[0], opts)
+			app := AppFrom(cmd)
+			if app != nil && app.Config != nil {
+				if err := applySize(app.Config, size, &opts); err != nil {
+					return err
+				}
+			}
+			var err error
+			if from != "" {
+				err = deployFromTemplate(cmd.Context(), cmd, from, args[0], opts)
+			} else {
+				err = runCreate(cmd.Context(), cmd, args[0], opts)
+			}
+			if err != nil {
+				return err
+			}
+			store, app2, err := openStore(cmd)
+			if err != nil {
+				return err
+			}
+			defer store.Close()
+			if err := armAutoStop(store, args[0], autoStop, app2.Config.Defaults.AutoStop, cmd.Flags().Changed("auto-stop")); err != nil {
+				return err
+			}
+			printAutoStop(cmd, store, args[0])
+			return nil
 		},
 	}
 
+	cmd.Flags().StringVar(&size, "size", "", "resource preset: default, small, large (see defaults.sizes)")
+	cmd.Flags().StringVar(&from, "from", "", "clone this template's disk instead of creating a fresh VM (see kaas template)")
+	cmd.Flags().StringVar(&autoStop, "auto-stop", "", "stop automatically this long after each start, e.g. 1h, 2d, or never (default: defaults.auto_stop)")
 	cmd.Flags().IntVar(&opts.Port, "port", 0, "SSH port (default: next free from ssh_port_base)")
 	cmd.Flags().IntVar(&opts.CPUs, "cpus", 0, "vCPUs (default from config)")
 	cmd.Flags().IntVar(&opts.Memory, "memory", 0, "memory GiB (default from config)")

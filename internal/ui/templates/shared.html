@@ -46,6 +46,40 @@
   button:hover, .btn:hover { border-color: var(--accent2); }
   footer { margin-top: 2rem; color: var(--muted); font-size: .8rem; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
+  .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+  pre.log { background: #0b1016; border: 1px solid var(--border); border-radius: 8px; padding: .75rem; margin: .75rem 0 0;
+    font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8d3de; max-height: 22rem; overflow: auto; white-space: pre-wrap; }
+  .spin { display:inline-block; width:.6em; height:.6em; margin-left:.35em; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation: spin .8s linear infinite; vertical-align:-.05em; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .card.job { margin-bottom: 1rem; }
+  .error { background: #3a2222; color: var(--bad); border: 1px solid #5a3333; border-radius: 8px; padding: .6rem .8rem; margin-bottom: 1rem; }
+  .pill.big { font-size: .85rem; padding: .2rem .6rem; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+  .connect .cmd { justify-content: space-between; padding: .3rem 0; border-bottom: 1px dashed var(--border); }
+  .connect .cmd:last-child { border-bottom: 0; }
+  button.copy { padding: .15rem .5rem; font-size: .75rem; }
+  button.bad { border-color: #5a3333; background: #3a2222; color: var(--bad); }
+  details.popover { position: relative; }
+  details.popover summary { list-style: none; display: inline-block; }
+  details.popover summary::-webkit-details-marker { display: none; }
+  details.popover > form.card { position: absolute; right: 0; top: calc(100% + .4rem); z-index: 20; width: 22rem; display: grid; gap: .6rem; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  details.danger > form.card { border-color: #5a3333; }
+  form.form { display: grid; gap: 1rem; }
+  form label { display: grid; gap: .3rem; }
+  form label.radio { grid-template-columns: auto 1fr; align-items: baseline; gap: .5rem; }
+  form label.radio input { margin: 0; }
+  form label.radio strong { margin-right: .4rem; }
+  form input[type=text], form input:not([type]) { background: #0b1016; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: .45rem .6rem; font: inherit; }
+  form fieldset { border: 1px solid var(--border); border-radius: 10px; padding: .75rem 1rem; display: grid; gap: .5rem; }
+  form legend { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: 0 .4rem; }
+  .meter { height: 8px; background: #0b1016; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: .6rem; }
+  .meter span { display: block; height: 100%; background: var(--accent); }
+  .meter span.warn { background: var(--warn); }
+  form select { background: #0b1016; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: .45rem .6rem; font: inherit; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: .25rem .75rem; margin: .5rem 0 0; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; }
+  ul.plain { list-style: none; padding: 0; margin: .25rem 0 0; } ul.plain li { padding: .15rem 0; }
+  .inline-form { display: inline-flex; gap: .4rem; align-items: center; }
 </style>
 {{end}}
 
@@ -55,8 +89,10 @@
   <nav>
     <a href="/" {{if eq .Active "home"}}class="active"{{end}}>Overview</a>
     <a href="/sandboxes" {{if eq .Active "sandboxes"}}class="active"{{end}}>Sandboxes</a>
+    <a href="/templates" {{if eq .Active "templates"}}class="active"{{end}}>Templates</a>
     <a href="/services" {{if eq .Active "services"}}class="active"{{end}}>Services</a>
     <a href="/events" {{if eq .Active "events"}}class="active"{{end}}>Events</a>
+    <a href="/jobs" {{if eq .Active "jobs"}}class="active"{{end}}>Jobs</a>
   </nav>
 </header>
 {{end}}

@@ -54,7 +54,19 @@ type Sandbox struct {
 	EgressStatus        string     `json:"egress_status,omitempty"`
 	EgressCAFingerprint string     `json:"egress_ca_fingerprint,omitempty"`
 	EgressPolicyHash    string     `json:"egress_policy_hash,omitempty"`
+	// Role is "" for an ordinary sandbox or RoleTemplate for a stopped golden
+	// disk that `--from` clones. Templates are never auto-stopped.
+	Role string `json:"role,omitempty"`
+	// AutoStopTTL is seconds from each start to the auto-stop deadline; 0 = never.
+	AutoStopTTL int        `json:"auto_stop_ttl,omitempty"`
+	AutoStopAt  *time.Time `json:"auto_stop_at,omitempty"`
 }
+
+// RoleTemplate marks a sandbox as a deploy source for `kaas up --from`.
+const RoleTemplate = "template"
+
+// IsTemplate reports whether the row is a template rather than a working sandbox.
+func (sb Sandbox) IsTemplate() bool { return sb.Role == RoleTemplate }
 
 // Event is an audit log entry for a sandbox action.
 type Event struct {
@@ -198,8 +210,9 @@ func (s *Store) CreateSandbox(sb Sandbox) error {
 			name, repo_path, repo_name, ssh_host, ssh_port, ssh_user, ssh_key,
 			cpus, memory_gib, disk_gib, arch, desired_state, observed_state,
 			created_at, updated_at, last_provisioned_at, config_source, workspace_repository, workspace_branch, workspace_directory, workspace_commit, setup_status, setup_completed_at,
-			egress_mode, egress_port, egress_status, egress_ca_fingerprint, egress_policy_hash
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			egress_mode, egress_port, egress_status, egress_ca_fingerprint, egress_policy_hash,
+			role, auto_stop_ttl, auto_stop_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sb.Name, sb.RepoPath, sb.RepoName, sb.SSHHost, sb.SSHPort, nullStr(sb.SSHUser), nullStr(sb.SSHKey),
 		nullInt(sb.CPUs), nullInt(sb.MemoryGiB), nullInt(sb.DiskGiB), nullStr(sb.Arch),
 		nullStr(sb.DesiredState), nullStr(sb.ObservedState),
@@ -207,6 +220,7 @@ func (s *Store) CreateSandbox(sb Sandbox) error {
 		sb.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		nullTime(sb.LastProvisionedAt), nullStr(sb.ConfigSource), nullStr(sb.WorkspaceRepository), nullStr(sb.WorkspaceBranch), nullStr(sb.WorkspaceDirectory), nullStr(sb.WorkspaceCommit), nullStr(sb.SetupStatus), nullTime(sb.SetupCompletedAt),
 		nullStr(sb.EgressMode), nullInt(sb.EgressPort), nullStr(sb.EgressStatus), nullStr(sb.EgressCAFingerprint), nullStr(sb.EgressPolicyHash),
+		nullStr(sb.Role), nullInt(sb.AutoStopTTL), nullTime(sb.AutoStopAt),
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed: sandboxes.name") {
@@ -220,14 +234,17 @@ func (s *Store) CreateSandbox(sb Sandbox) error {
 	return nil
 }
 
-// GetSandbox returns a sandbox by name.
-func (s *Store) GetSandbox(name string) (*Sandbox, error) {
-	row := s.db.QueryRow(`
-		SELECT name, repo_path, repo_name, ssh_host, ssh_port, ssh_user, ssh_key,
+// sandboxColumns is the SELECT list every sandbox read shares; scanSandbox
+// must stay in the same order.
+const sandboxColumns = `name, repo_path, repo_name, ssh_host, ssh_port, ssh_user, ssh_key,
 			cpus, memory_gib, disk_gib, arch, desired_state, observed_state,
 			created_at, updated_at, last_provisioned_at, config_source, workspace_repository, workspace_branch, workspace_directory, workspace_commit, setup_status, setup_completed_at,
-			egress_mode, egress_port, egress_status, egress_ca_fingerprint, egress_policy_hash
-		FROM sandboxes WHERE name = ?`, name)
+			egress_mode, egress_port, egress_status, egress_ca_fingerprint, egress_policy_hash,
+			role, auto_stop_ttl, auto_stop_at`
+
+// GetSandbox returns a sandbox by name.
+func (s *Store) GetSandbox(name string) (*Sandbox, error) {
+	row := s.db.QueryRow(`SELECT `+sandboxColumns+` FROM sandboxes WHERE name = ?`, name)
 	sb, err := scanSandbox(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
@@ -237,12 +254,7 @@ func (s *Store) GetSandbox(name string) (*Sandbox, error) {
 
 // ListSandboxes returns all sandboxes, optionally filtered by repo path or name.
 func (s *Store) ListSandboxes(repoFilter string) ([]Sandbox, error) {
-	q := `
-		SELECT name, repo_path, repo_name, ssh_host, ssh_port, ssh_user, ssh_key,
-			cpus, memory_gib, disk_gib, arch, desired_state, observed_state,
-			created_at, updated_at, last_provisioned_at, config_source, workspace_repository, workspace_branch, workspace_directory, workspace_commit, setup_status, setup_completed_at,
-			egress_mode, egress_port, egress_status, egress_ca_fingerprint, egress_policy_hash
-		FROM sandboxes`
+	q := `SELECT ` + sandboxColumns + ` FROM sandboxes`
 	var args []any
 	if repoFilter != "" {
 		q += ` WHERE workspace_repository = ? OR workspace_directory = ?`
@@ -279,14 +291,16 @@ func (s *Store) UpdateSandbox(sb Sandbox) error {
 			ssh_user = ?, ssh_key = ?, cpus = ?, memory_gib = ?, disk_gib = ?,
 			arch = ?, desired_state = ?, observed_state = ?, updated_at = ?, last_provisioned_at = ?,
 			config_source = ?, workspace_repository = ?, workspace_branch = ?, workspace_directory = ?, workspace_commit = ?, setup_status = ?, setup_completed_at = ?,
-			egress_mode = ?, egress_port = ?, egress_status = ?, egress_ca_fingerprint = ?, egress_policy_hash = ?
+			egress_mode = ?, egress_port = ?, egress_status = ?, egress_ca_fingerprint = ?, egress_policy_hash = ?,
+			role = ?, auto_stop_ttl = ?, auto_stop_at = ?
 		WHERE name = ?`,
 		sb.RepoPath, sb.RepoName, sb.SSHHost, sb.SSHPort,
 		nullStr(sb.SSHUser), nullStr(sb.SSHKey), nullInt(sb.CPUs), nullInt(sb.MemoryGiB), nullInt(sb.DiskGiB),
 		nullStr(sb.Arch), nullStr(sb.DesiredState), nullStr(sb.ObservedState),
 		sb.UpdatedAt.UTC().Format(time.RFC3339Nano), nullTime(sb.LastProvisionedAt),
 		nullStr(sb.ConfigSource), nullStr(sb.WorkspaceRepository), nullStr(sb.WorkspaceBranch), nullStr(sb.WorkspaceDirectory), nullStr(sb.WorkspaceCommit), nullStr(sb.SetupStatus), nullTime(sb.SetupCompletedAt),
-		nullStr(sb.EgressMode), nullInt(sb.EgressPort), nullStr(sb.EgressStatus), nullStr(sb.EgressCAFingerprint), nullStr(sb.EgressPolicyHash), sb.Name,
+		nullStr(sb.EgressMode), nullInt(sb.EgressPort), nullStr(sb.EgressStatus), nullStr(sb.EgressCAFingerprint), nullStr(sb.EgressPolicyHash),
+		nullStr(sb.Role), nullInt(sb.AutoStopTTL), nullTime(sb.AutoStopAt), sb.Name,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed: sandboxes.ssh_port") {
@@ -452,8 +466,8 @@ type scannable interface {
 
 func scanSandbox(row scannable) (*Sandbox, error) {
 	var sb Sandbox
-	var sshUser, sshKey, arch, desired, observed, lastProv, configSource, workspaceRepo, workspaceBranch, workspaceDirectory, workspaceCommit, setupStatus, setupCompleted, egressMode, egressStatus, egressCA, egressHash sql.NullString
-	var cpus, mem, disk, egressPort sql.NullInt64
+	var sshUser, sshKey, arch, desired, observed, lastProv, configSource, workspaceRepo, workspaceBranch, workspaceDirectory, workspaceCommit, setupStatus, setupCompleted, egressMode, egressStatus, egressCA, egressHash, role, autoStopAt sql.NullString
+	var cpus, mem, disk, egressPort, autoStopTTL sql.NullInt64
 	var created, updated string
 
 	err := row.Scan(
@@ -461,9 +475,19 @@ func scanSandbox(row scannable) (*Sandbox, error) {
 		&sshUser, &sshKey, &cpus, &mem, &disk, &arch, &desired, &observed,
 		&created, &updated, &lastProv, &configSource, &workspaceRepo, &workspaceBranch, &workspaceDirectory, &workspaceCommit, &setupStatus, &setupCompleted,
 		&egressMode, &egressPort, &egressStatus, &egressCA, &egressHash,
+		&role, &autoStopTTL, &autoStopAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	sb.Role = role.String
+	if autoStopTTL.Valid {
+		sb.AutoStopTTL = int(autoStopTTL.Int64)
+	}
+	if autoStopAt.Valid && autoStopAt.String != "" {
+		if t, err := parseTime(autoStopAt.String); err == nil {
+			sb.AutoStopAt = &t
+		}
 	}
 	sb.SSHUser = sshUser.String
 	sb.SSHKey = sshKey.String

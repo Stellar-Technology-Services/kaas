@@ -122,7 +122,9 @@ func NewRoot() *cobra.Command {
 		newCreateCmd(),
 		newStartCmd(),
 		newStopCmd(),
+		newExtendCmd(),
 		newForkCmd(),
+		newTemplateCmd(),
 		newDestroyCmd(),
 	)
 	addGrouped(root, "guest",
@@ -138,6 +140,8 @@ func NewRoot() *cobra.Command {
 	)
 	addGrouped(root, "access",
 		newSSHCmd(),
+		newExecCmd(),
+		newPsCmd(),
 		newCPCmd(),
 		newPingCmd(),
 		newServicesCmd(),
@@ -148,6 +152,7 @@ func NewRoot() *cobra.Command {
 	addGrouped(root, "observe",
 		newListCmd(),
 		newInspectCmd(),
+		newContractCmd(),
 		newDoctorCmd(),
 		newEventsCmd(),
 	)

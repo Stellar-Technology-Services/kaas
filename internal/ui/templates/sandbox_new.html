@@ -1,0 +1,90 @@
+{{define "sandbox_new"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>New sandbox</h1>
+  <p class="muted" style="margin:-.5rem 0 1rem">Runs <code>kaas up &lt;name&gt;</code> in the background with the flags below. Defaults match <code>boat new</code>: one command, sensible size, ready in a few minutes.</p>
+{{with .Form}}
+  {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+  {{if .Capacity.Warn}}<div class="error" style="background:#3a341d;color:var(--warn);border-color:#5a5033">Host memory is already {{.Capacity.MemoryPercent}}% allocated to running sandboxes ({{.Capacity.AllocMemoryGiB}} of {{.Capacity.HostMemoryGiB}} GiB). Another VM may swap. Stop one first, or pick <code>small</code>.</div>{{end}}
+  <form method="post" action="/sandboxes" class="card form">
+    <label>Name
+      <input name="name" value="{{.Name}}" required pattern="[a-z0-9][a-z0-9-]*" autocomplete="off">
+      <span class="muted">lowercase letters, digits, hyphens · becomes the Colima profile, SSH host, and SecretSpec profile</span>
+    </label>
+
+    <fieldset>
+      <legend>Size</legend>
+      {{range .Sizes}}
+      <label class="radio"><input type="radio" name="size" value="{{.Name}}" {{if eq .Name $.Form.Size}}checked{{end}}>
+        <strong>{{.Name}}</strong> <span class="muted">{{.CPUs}} vCPU · {{.MemoryGiB}} GiB · {{.DiskGiB}} GiB disk</span>
+        {{if .Warn}}<span class="pill warn" title="would push host memory allocation past {{$.Form.Capacity.MemoryPercent}}%">tight</span>{{end}}
+      </label>
+      {{end}}
+      <span class="muted">Edit presets under <code>defaults.sizes</code> in <code>~/.kaas/kaas.yaml</code>.</span>
+    </fieldset>
+
+    <fieldset>
+      <legend>Trust</legend>
+      <label class="radio"><input type="radio" name="trust" value="trusted" {{if ne .Trust "untrusted"}}checked{{end}}>
+        <strong>Trusted</strong> <span class="muted">deploy SecretSpec values into the guest (<code>kaas secrets deploy</code>); for your own code</span></label>
+      <label class="radio"><input type="radio" name="trust" value="untrusted" {{if eq .Trust "untrusted"}}checked{{end}}>
+        <strong>Untrusted</strong> <span class="muted">delegated egress, <code>proxy_only</code>, default deny; the guest never holds a credential value. GitHub is allowed (no token) so checkout works.</span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Start from</legend>
+      <label class="radio"><input type="radio" name="from" value="" {{if not .From}}checked{{end}}>
+        <strong>Fresh VM</strong> <span class="muted">provision toolchains and agents with Ansible (several minutes)</span></label>
+      {{range .Templates}}
+      <label class="radio"><input type="radio" name="from" value="{{.Name}}" {{if eq .Name $.Form.From}}checked{{end}}>
+        <strong>Template <code>{{.Name}}</code></strong> <span class="muted">clone its disk ({{.CPUs}} CPU / {{.MemoryGiB}} GiB / {{.DiskGiB}} GiB); skip provision/agents</span></label>
+      {{end}}
+      {{if not .Templates}}<span class="muted">No templates yet — save one from a provisioned sandbox to make later deploys fast.</span>{{end}}
+    </fieldset>
+
+    <fieldset>
+      <legend>Auto-stop</legend>
+      <label>Stop automatically after
+        <select name="auto_stop">
+          {{range .AutoStops}}<option value="{{.}}" {{if eq . $.Form.AutoStop}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+        <span class="muted">Counted from each start, not from activity. Extend any time from the sandbox page or <code>kaas extend</code>. Default comes from <code>defaults.auto_stop</code>.</span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Workspace (optional)</legend>
+      <label>Project directory on this host
+        <input name="project_dir" value="{{.ProjectDir}}" placeholder="~/src/my-app (contains kaas.yaml)">
+        <span class="muted">Runs <code>kaas up</code> from here so the project <code>kaas.yaml</code> (sources, services, egress) applies.</span>
+      </label>
+      <div class="grid two" style="margin:0">
+        <label>Repository URL
+          <input name="repo" value="{{.Repo}}" placeholder="git@github.com:acme/project.git">
+          <span class="muted">No kaas.yaml? Clone this as the primary source under <code>~/workspace/&lt;repo&gt;</code>.</span>
+        </label>
+        <label>Branch <input name="branch" value="{{.Branch}}" placeholder="main"></label>
+      </div>
+    </fieldset>
+
+    <div class="row">
+      <button type="submit">Create sandbox</button>
+      <a class="muted" href="/sandboxes">Cancel</a>
+      <span class="muted">Host: {{.Capacity.HostCPUs}} CPUs · {{if .Capacity.HostMemoryGiB}}{{.Capacity.HostMemoryGiB}} GiB{{else}}? GiB{{end}} · {{.Capacity.RunningCount}} running using {{.Capacity.AllocCPUs}} CPU / {{.Capacity.AllocMemoryGiB}} GiB</span>
+    </div>
+  </form>
+{{end}}
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}

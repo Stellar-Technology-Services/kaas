@@ -17,6 +17,7 @@ porter/.cnab/
 .beads-credential-key
 .beads/proxieddb/
 .beads/
+.beads.gate.lock
 
 # Firecrawl
 .firecrawl/

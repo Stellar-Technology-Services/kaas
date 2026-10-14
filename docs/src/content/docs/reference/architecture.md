@@ -52,7 +52,7 @@ flowchart LR
 | **SecretSpec provider** | Host-side declaration and storage; profile `default ∪ <sandbox>` supplies either deployment path |
 | **Host egress proxy** | Holds delegated values in memory, matches HTTP(S) destinations, injects credentials, and owns the private interception CA |
 | **Host ingress + DNS** | Loopback HTTP reverse proxy (Host routing + catalog) and optional `*.kaas.test` DNS stub; SSH `-L` publishes guest listeners |
-| **Local web UI** | Optional loopback dashboard (`kaas ui`, default `127.0.0.1:18181`) over the same SQLite registry; separate from the ingress catalog |
+| **Local web UI** | Optional loopback dashboard (`kaas ui`, default `127.0.0.1:18181`) over the same SQLite registry; lifecycle buttons spawn `kaas … --jsonl` **jobs** and poll them; separate from the ingress catalog |
 | **Ansible** | Installs toolchains; writes explicitly injected secrets or, separately, installs only the proxy public CA, variables, placeholders, and nftables rules |
 | **SQLite state** | Sandbox, service registry, and redacted egress metadata. It stores no credential values or private CA material |
 
@@ -80,8 +80,58 @@ flowchart LR
    forwards so browsers can use `http://service.sandbox.kaas.test` after
    `kaas dns enable`.
 9. Optional `kaas ui` serves a loopback management dashboard over the registry
-   (sandboxes, services, events). It does not replace the ingress catalog at
-   `http://kaas.test/`.
+   (sandboxes, services, events, jobs). It does not replace the ingress catalog
+   at `http://kaas.test/`.
+
+## UI job runner
+
+The dashboard never calls `internal/sandbox/lifecycle` directly. A button or the
+**New sandbox** form creates a row in `jobs` (`id, sandbox, verb, args_json,
+status, phase, summary, exit_code, log_path, …`) and starts
+`kaas <verb> <args> --jsonl --state <db>` as a child process. The runner tees
+stdout/stderr to `~/.kaas/ui/jobs/<id>.log`, parses JSONL `message` records
+into `phase`, and marks the job `ok`/`failed` from the `result` record and exit
+code. One active job per sandbox is allowed; the CLI's `sandbox_operations`
+claims stay the authoritative concurrency guard. Jobs run from the sandbox's
+recorded `repo_path` when it exists (so the project contract applies) or `$HOME`.
+
+Readiness shown in the UI is a pure function of registry facts
+(`internal/ui/readiness.go`): observed state, `setup_status`, `up` phase events
+since the latest `create`, and the active job. It never queries the provider.
+
+## Templates and auto-stop
+
+A **template** is a sandbox row with `role = template`: a stopped golden disk
+produced by `kaas template save` (fork + stop + tag). `kaas up --from` forks it
+under the new name, persists a fresh contract from the current config stack,
+records `provision`/`agents` as skipped, and continues with the per-sandbox
+phases. Templates are exempt from auto-stop and refuse `kaas start`. This is
+the Lima-feasible equivalent of a cloud "named snapshot": the disk is the
+template, the contract and SecretSpec profile are the environment.
+
+**Auto-stop** is two columns on `sandboxes`: `auto_stop_ttl` (seconds, kept
+across stops) and `auto_stop_at` (deadline while running, cleared on stop,
+re-armed as now + TTL on each start). `kaas extend` rewrites both. The UI daemon
+(`internal/ui/autostop.go`) ticks every 30 s and starts a `kaas stop` job for
+overdue, running, non-template sandboxes with no active job. The CLI never
+stops a VM on its own.
+
+**Phase logs**: `runProvision`, `runNamedPlaybook`, and `runWorkspaceSetup`
+tee their Ansible/SSH streams to `<paths.logs_dir>/<sandbox>/<phase>.log`
+(`internal/cli/phaselog.go`); the UI lists and tails them. `kaas stop` first
+runs an optional repository `scripts/kaas-prestop` over SSH.
+
+## Guest commands
+
+`kaas exec` (`internal/cli/exec.go`) is SSH plus bookkeeping. A detached
+command runs `nohup setsid bash -lc '<cmd>; echo $? > ~/.kaas-runs/<id>.exit'`
+with output to `~/.kaas-runs/<id>.log` and prints the pid; status is read back
+from the `.exit` file or `kill -0`, attach is `tail -f --pid`, kill is `TERM`
+to the process group then `KILL`. The host keeps one `sandbox_commands` row per
+command (id, cwd, pid, status, exit code); `kaas stop` marks running rows
+`lost`. Nothing but the index lives on the host, so stop/start/fork keep the
+guest-side history. The UI's Run and Prompt boxes call
+`kaas exec … --detach --jsonl` synchronously and poll `--status --jsonl`.
 
 ## Why there are two secret paths
 
@@ -175,9 +225,10 @@ flowchart LR
 
 | Help group | CLI commands | Domain owner |
 |---|---|---|
-| Machine lifecycle | `up`, `create`, `start`, `stop`, `fork`, `destroy` | `internal/sandbox/lifecycle` (+ `up` orchestration) |
+| Machine lifecycle | `up`, `create`, `start`, `stop`, `extend`, `fork`, `template`, `destroy` | `internal/sandbox/lifecycle` (+ `up` orchestration, templates, auto-stop columns) |
 | Guest readiness | `provision`, `agents`, `setup`, `check` | Ansible playbooks / project contract |
-| Inspect and diagnose | `list`, `inspect`, `doctor`, `events` | registry + reconcile + audit log |
+| Sandbox access | `ssh`, `exec`, `ps`, `cp`, `ping`, `services`, `dns`, `ingress`, `ui` | SSH helpers + `sandbox_commands` index + ingress runtime |
+| Inspect and diagnose | `list`, `inspect`, `contract`, `doctor`, `events` | registry + reconcile + audit log |
 
 `kaas create` is a raw machine operation (Colima + state DB only). `kaas up`
 and `kaas provision` require Ansible assets. Guest readiness and credential
@@ -227,7 +278,8 @@ versus guest injection.
 ```
 internal/cli/             command-line entrypoints for every subcommand
 internal/config/          kaas.yaml / env / flag configuration loading (koanf)
-internal/state/           SQLite registry + migrations
+internal/state/           SQLite registry + migrations (sandboxes, events, contracts, services, jobs, commands)
+internal/ui/              loopback dashboard: HTMX pages, readiness view-model, background job runner, auto-stop ticker
 internal/colima/          Colima client wrappers + lifecycle
 internal/ansible/         playbook runner + inventory generation
 internal/secretspec/      SecretSpec CLI client (set/export/check/resolve)

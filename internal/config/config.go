@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/knadh/koanf/parsers/yaml"
@@ -24,11 +25,11 @@ const (
 
 // Config is the merged runtime configuration for kaas.
 type Config struct {
-	Defaults      Defaults      `koanf:"defaults" yaml:"defaults"`
-	Paths         Paths         `koanf:"paths" yaml:"paths"`
-	State         State         `koanf:"state" yaml:"state"`
-	Ansible       Ansible       `koanf:"ansible" yaml:"ansible"`
-	Output        Output        `koanf:"output" yaml:"output"`
+	Defaults       Defaults       `koanf:"defaults" yaml:"defaults"`
+	Paths          Paths          `koanf:"paths" yaml:"paths"`
+	State          State          `koanf:"state" yaml:"state"`
+	Ansible        Ansible        `koanf:"ansible" yaml:"ansible"`
+	Output         Output         `koanf:"output" yaml:"output"`
 	Workspace      Workspace      `koanf:"workspace" yaml:"workspace"`
 	Egress         Egress         `koanf:"egress" yaml:"egress"`
 	EgressRuntime  EgressRuntime  `koanf:"egress_runtime" yaml:"egress_runtime"`
@@ -136,16 +137,57 @@ type Varlock struct {
 }
 
 type Defaults struct {
-	CPUs        int    `koanf:"cpus" yaml:"cpus"`
-	MemoryGiB   int    `koanf:"memory_gib" yaml:"memory_gib"`
-	DiskGiB     int    `koanf:"disk_gib" yaml:"disk_gib"`
-	Arch        string `koanf:"arch" yaml:"arch"`
-	SSHPortBase int    `koanf:"ssh_port_base" yaml:"ssh_port_base"`
+	CPUs        int             `koanf:"cpus" yaml:"cpus"`
+	MemoryGiB   int             `koanf:"memory_gib" yaml:"memory_gib"`
+	DiskGiB     int             `koanf:"disk_gib" yaml:"disk_gib"`
+	Arch        string          `koanf:"arch" yaml:"arch"`
+	SSHPortBase int             `koanf:"ssh_port_base" yaml:"ssh_port_base"`
+	Sizes       map[string]Size `koanf:"sizes" yaml:"sizes"` // named presets for --size; host config only
+	// AutoStop is the default `--auto-stop` for new sandboxes: a Go duration
+	// such as "1h" or "never" (the built-in, preserving today's behaviour).
+	AutoStop string `koanf:"auto_stop" yaml:"auto_stop"`
+}
+
+// Size is a named VM resource preset (`kaas up --size small`). The special
+// name "default" always resolves to Defaults.CPUs/MemoryGiB/DiskGiB.
+type Size struct {
+	CPUs      int `koanf:"cpus" yaml:"cpus"`
+	MemoryGiB int `koanf:"memory_gib" yaml:"memory_gib"`
+	DiskGiB   int `koanf:"disk_gib" yaml:"disk_gib"`
+}
+
+// SizeNames returns preset names in display order (default first).
+func (d Defaults) SizeNames() []string {
+	names := []string{"default"}
+	rest := make([]string, 0, len(d.Sizes))
+	for name := range d.Sizes {
+		if name != "default" {
+			rest = append(rest, name)
+		}
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		// Order by CPUs so small < default < large reads naturally.
+		return d.Sizes[rest[i]].CPUs < d.Sizes[rest[j]].CPUs
+	})
+	return append(names, rest...)
+}
+
+// ResolveSize returns the resources for a preset name.
+func (d Defaults) ResolveSize(name string) (Size, error) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" || name == "default" {
+		return Size{CPUs: d.CPUs, MemoryGiB: d.MemoryGiB, DiskGiB: d.DiskGiB}, nil
+	}
+	if s, ok := d.Sizes[name]; ok {
+		return s, nil
+	}
+	return Size{}, fmt.Errorf("unknown size %q (available: %s)", name, strings.Join(d.SizeNames(), ", "))
 }
 
 type Paths struct {
 	AnsibleDir string `koanf:"ansible_dir" yaml:"ansible_dir"`
 	SSHKey     string `koanf:"ssh_key" yaml:"ssh_key"`
+	LogsDir    string `koanf:"logs_dir" yaml:"logs_dir"` // per-sandbox phase logs (~/.kaas/logs)
 }
 
 type State struct {
@@ -184,10 +226,15 @@ func BuiltIn() Config {
 			DiskGiB:     64,
 			Arch:        "aarch64",
 			SSHPortBase: DefaultPortBase,
+			Sizes: map[string]Size{
+				"small": {CPUs: 2, MemoryGiB: 4, DiskGiB: 32},
+				"large": {CPUs: 8, MemoryGiB: 16, DiskGiB: 128},
+			},
 		},
 		Paths: Paths{
 			AnsibleDir: "ansible",
 			SSHKey:     "~/.colima/_lima/_config/user",
+			LogsDir:    filepath.Join(home, ".kaas", "logs"),
 		},
 		State:         State{Path: statePath},
 		Output:        Output{JSONL: false},
@@ -287,6 +334,7 @@ func Load(opts LoadOptions) (*Config, error) {
 
 	cfg.State.Path = expandHome(cfg.State.Path)
 	cfg.Paths.SSHKey = expandHome(cfg.Paths.SSHKey)
+	cfg.Paths.LogsDir = expandHome(cfg.Paths.LogsDir)
 	cfg.EgressRuntime.Root = expandHome(cfg.EgressRuntime.Root)
 	cfg.IngressRuntime.Root = expandHome(cfg.IngressRuntime.Root)
 	cfg.UIRuntime.Root = expandHome(cfg.UIRuntime.Root)
@@ -308,6 +356,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Defaults.CPUs < 1 {
 		return fmt.Errorf("defaults.cpus must be >= 1")
+	}
+	for name, size := range c.Defaults.Sizes {
+		if size.CPUs < 1 || size.MemoryGiB < 1 || size.DiskGiB < 1 {
+			return fmt.Errorf("defaults.sizes.%s: cpus, memory_gib, and disk_gib must all be >= 1", name)
+		}
+	}
+	if _, err := ParseAutoStop(c.Defaults.AutoStop); err != nil {
+		return fmt.Errorf("defaults.auto_stop: %w", err)
 	}
 	if c.State.Path == "" {
 		return fmt.Errorf("state.path is required")

@@ -1,0 +1,85 @@
+{{define "jobs"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+  <h1>Jobs{{if .Filter}} · <code>{{.Filter}}</code>{{end}}</h1>
+  <p class="muted" style="margin:-.5rem 0 1rem">Each job is one <code>kaas … --jsonl</code> process started from this UI. Logs live under <code>~/.kaas/ui/jobs/</code>.</p>
+  {{template "partial_jobs_table" .}}
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "job"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · KaaS</title>
+  <script src="/static/htmx.min.js" defer></script>
+  {{template "styles" .}}
+</head>
+<body>
+{{template "nav" .}}
+<main>
+{{with .Job}}
+  <h1><code>{{.Command}}</code></h1>
+  <p class="muted" style="margin:-.5rem 0 1rem">sandbox <a href="/sandboxes/{{.Sandbox}}"><code>{{.Sandbox}}</code></a> · <a href="/jobs/{{.ID}}/log">full log</a></p>
+  {{template "partial_job" $}}
+{{end}}
+  <footer>Loopback only · {{fmtTime .Now}} UTC</footer>
+</main>
+</body>
+</html>
+{{end}}
+
+{{define "partial_jobs_table"}}
+<table>
+  <thead><tr><th>Started</th><th>Sandbox</th><th>Command</th><th>Status</th><th>Phase / summary</th></tr></thead>
+  <tbody>
+  {{range .Jobs}}
+    <tr>
+      <td class="muted">{{fmtTime .CreatedAt}}</td>
+      <td><a href="/sandboxes/{{.Sandbox}}"><code>{{.Sandbox}}</code></a></td>
+      <td><a href="/jobs/{{.ID}}"><code>{{.Command}}</code></a></td>
+      <td>{{template "job_status_pill" .}}</td>
+      <td class="muted">{{if .Active}}{{emptyDash .Phase}}{{else}}{{emptyDash .Summary}}{{end}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="muted">No jobs yet. Lifecycle buttons on a sandbox page start one.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+
+{{define "job_status_pill"}}<span class="pill {{if eq .Status "ok"}}ok{{else if eq .Status "failed"}}bad{{else}}warn{{end}}">{{.Status}}{{if .Active}}<span class="spin"></span>{{end}}</span>{{end}}
+
+{{define "partial_job"}}
+{{with .Job}}
+<div id="job-{{.ID}}" class="card job"
+     {{if .Active}}hx-get="/partials/jobs/{{.ID}}" hx-trigger="every 2s" hx-swap="outerHTML"{{end}}>
+  <div class="row" style="justify-content:space-between;align-items:baseline">
+    <div><span class="label">Job</span> <code>{{.Command}}</code></div>
+    <div>{{template "job_status_pill" .}}</div>
+  </div>
+  <p style="margin:.5rem 0 0">
+    {{if .Active}}<span class="muted">phase</span> {{emptyDash .Phase}}
+    {{else}}{{if .Summary}}{{.Summary}}{{else}}<span class="muted">exit {{.ExitCode}} · {{fmtTime .FinishedAt}}</span>{{end}}{{end}}
+  </p>
+  {{if .LogTail}}<pre class="log">{{range .LogTail}}{{.}}
+{{end}}</pre>{{end}}
+  <p class="muted" style="margin:.5rem 0 0"><a href="/jobs/{{.ID}}/log">full log</a>{{if not .Active}} · <a href="/jobs/{{.ID}}">details</a>{{end}}</p>
+</div>
+{{end}}
+{{end}}

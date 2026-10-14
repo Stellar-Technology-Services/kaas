@@ -94,6 +94,37 @@ ingress_runtime:
 - `kaas destroy` removes service rows (CASCADE) and reloads ingress.
 - Publishing is **local-only** — no public HTTPS sharing.
 
+## Keep a service running
+
+A stop/start is a reboot for the guest. A dev server you started by hand (or
+with `kaas exec --detach`) does not come back; an **enabled systemd unit** does.
+The UI's sandbox page probes each published host port and, for a declared
+service that is not listening, shows a unit snippet like this:
+
+```ini
+# /etc/systemd/system/api.service
+[Unit]
+Description=api (kaas my-app)
+After=network.target
+
+[Service]
+User=pradeep
+WorkingDirectory=/home/pradeep.guest/workspace/app
+ExecStart=/bin/bash -lc 'exec npm run start -- --port 8080'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now api
+```
+
+`kaas services sync` restores the host forward after each start; the unit
+restores the listener.
+
 See [Configuration](./configuration.md), [Local web UI](./ui.md),
 [CLI](../reference/cli.md), [Architecture](../reference/architecture.md), and the
 [FAQ on local services](../faq.md#how-do-i-publish-guest-http-apps-without-port-fights).

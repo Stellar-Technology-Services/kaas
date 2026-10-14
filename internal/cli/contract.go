@@ -12,27 +12,7 @@ import (
 // resolveContractStack builds Resolver input from the effective app config.
 // Persisted authority and first-time adoption are applied inside Resolve.
 func resolveContractStack(cfg *config.Config, persisted *contract.Contract, flags contract.Layer, adopt bool) (contract.Resolved, error) {
-	if cfg == nil {
-		return contract.Resolved{}, fmt.Errorf("config is required")
-	}
-	in := contract.Input{
-		BuiltIn:   contract.LayerFromConfig(config.BuiltIn(), "builtin"),
-		Persisted: persisted,
-		Adopt:     adopt,
-		Reconcile: adopt,
-		Flags:     flags,
-	}
-	// Effective cfg is already merged. Expose it as the project layer so
-	// resolution sees workspace/egress/resources from the active files.
-	source := cfg.ConfigPath
-	if source == "" {
-		source = cfg.UserConfig
-	}
-	if source == "" {
-		source = "effective"
-	}
-	in.Project = contract.LayerFromConfig(*cfg, source)
-	return contract.Resolver{}.Resolve(context.Background(), in)
+	return contract.ResolveFromConfig(cfg, persisted, flags, adopt)
 }
 
 // ensureContract loads the persisted contract or adopts one when none exists.

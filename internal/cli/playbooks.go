@@ -90,6 +90,8 @@ func runNamedPlaybook(cmd *cobra.Command, args []string, action string, playbook
 	}
 
 	runner := newRunner(app)
+	log := attachPhaseLog(app, runner, name, action)
+	defer log.Close()
 	app.Log.Info("running playbook", "action", action, "playbook", opts.Playbook, "name", name)
 	if err := runner.RunPlaybook(cmd.Context(), opts); err != nil {
 		recordEvent(store, name, action, "failed", err.Error())
