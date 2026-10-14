@@ -1,85 +1,108 @@
 {{define "styles"}}
 <style>
+  /* Dark-only phosphor terminal theme. Class names are the contract with the templates. */
   :root {
-    --bg: #0f1419; --panel: #1a222c; --border: #2a3542; --text: #e7ecf1;
-    --muted: #8b9aab; --accent: #7ddbb2; --accent2: #b8a9e8; --warn: #e6c35c;
-    --bad: #e87b7b; --ok: #7ddbb2;
+    color-scheme: dark;
+    --bg: #000; --panel: #000; --border: #1f5a2a; --text: #33ff66;
+    --muted: #1f9e45; --accent: #66ff99; --accent2: #99ffbb; --warn: #ffcc33;
+    --bad: #ff5555; --ok: #33ff66; --dim: #031a0a;
+    --mono: ui-monospace, "JetBrains Mono", Menlo, "DejaVu Sans Mono", Consolas, monospace;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; border-radius: 0 !important; }
+  html { background: var(--bg); }
   body {
-    margin: 0;
-    font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-    background: radial-gradient(1200px 600px at 10% -10%, #1c2430 0%, var(--bg) 55%);
-    color: var(--text); min-height: 100vh;
+    margin: 0; font: 14px/1.5 var(--mono); color: var(--text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    background: var(--bg) repeating-linear-gradient(0deg, var(--dim) 0 1px, transparent 1px 4px) fixed;
   }
   a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  a:hover { background: var(--text); color: var(--bg); }
+  ::selection { background: var(--text); color: var(--bg); }
   header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
-    background: rgba(15,20,25,.85); position: sticky; top: 0; z-index: 10;
+    padding: .5rem 1rem; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: sticky; top: 0; z-index: 10;
   }
-  .brand { font-weight: 700; color: var(--text); }
-  .brand span { color: var(--accent2); font-weight: 500; margin-left: .35rem; }
-  nav a { color: var(--muted); margin-left: 1rem; font-weight: 500; }
-  nav a.active, nav a:hover { color: var(--text); }
-  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
-  h1 { font-size: 1.35rem; margin: 0 0 1rem; font-weight: 650; }
-  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 1.25rem; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.1rem; }
-  .card .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; }
-  .card .value { font-size: 1.55rem; font-weight: 650; margin-top: .25rem; }
-  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  th, td { text-align: left; padding: .65rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; background: #151c24; }
+  .brand { font-weight: 700; color: var(--accent2); text-transform: uppercase; }
+  .brand::before { content: "┌─ "; color: var(--muted); }
+  .brand span { color: var(--muted); font-weight: 400; margin-left: .35rem; }
+  .brand span::before { content: ":: "; }
+  nav a { color: var(--muted); margin-left: .75rem; }
+  nav a::before { content: "[ "; } nav a::after { content: " ]"; }
+  nav a.active { color: var(--accent2); font-weight: 700; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1rem; }
+  h1 { font-size: 1rem; margin: 0 0 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  h1::before { content: "> "; color: var(--muted); }
+  h2, h3 { font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .grid { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 1rem; }
+  .card { background: var(--panel); border: 1px solid var(--border); padding: .75rem .9rem; }
+  .card .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
+  .card .label::before { content: "# "; }
+  .card .value { font-size: 1.5rem; font-weight: 700; margin-top: .15rem; color: var(--accent2); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); }
+  th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px dashed var(--border); vertical-align: top; }
+  th { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; background: var(--dim); border-bottom: 1px solid var(--border); font-weight: 700; }
   tr:last-child td { border-bottom: 0; }
-  .pill { display: inline-block; padding: .1rem .45rem; border-radius: 999px; font-size: .72rem; font-weight: 600; background: #243041; color: var(--muted); }
-  .pill.ok { background: #1d3a30; color: var(--ok); }
-  .pill.bad { background: #3a2222; color: var(--bad); }
-  .pill.warn { background: #3a341d; color: var(--warn); }
+  tbody tr:hover td { background: var(--dim); }
+  .pill { display: inline-block; padding: 0 .3rem; font-size: .8rem; font-weight: 700; border: 1px solid var(--muted); color: var(--muted); text-transform: lowercase; }
+  .pill::before { content: "["; } .pill::after { content: "]"; }
+  .pill.ok { border-color: var(--ok); color: var(--ok); }
+  .pill.bad { border-color: var(--bad); color: var(--bad); }
+  .pill.warn { border-color: var(--warn); color: var(--warn); }
   .muted { color: var(--muted); }
   .stack { display: grid; gap: 1rem; }
   button, .btn {
-    appearance: none; border: 1px solid var(--border); background: #243041; color: var(--text);
-    border-radius: 8px; padding: .4rem .75rem; font: inherit; cursor: pointer;
+    appearance: none; border: 1px solid var(--text); background: var(--bg); color: var(--text);
+    padding: .25rem .6rem; font: inherit; cursor: pointer; text-transform: uppercase; letter-spacing: .04em;
   }
-  button:hover, .btn:hover { border-color: var(--accent2); }
-  footer { margin-top: 2rem; color: var(--muted); font-size: .8rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85em; }
+  button::before, .btn::before { content: "[ "; } button::after, .btn::after { content: " ]"; }
+  button:hover, .btn:hover { background: var(--text); color: var(--bg); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  footer { margin-top: 2rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--border); padding-top: .5rem; }
+  footer::before { content: "└─ "; }
+  code { font-family: var(--mono); font-size: 1em; color: var(--accent2); }
   .row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
-  pre.log { background: #0b1016; border: 1px solid var(--border); border-radius: 8px; padding: .75rem; margin: .75rem 0 0;
-    font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8d3de; max-height: 22rem; overflow: auto; white-space: pre-wrap; }
-  .spin { display:inline-block; width:.6em; height:.6em; margin-left:.35em; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation: spin .8s linear infinite; vertical-align:-.05em; }
+  pre.log { background: var(--bg); border: 1px solid var(--border); padding: .6rem; margin: .75rem 0 0;
+    font: 13px/1.4 var(--mono); color: var(--text); max-height: 22rem; overflow: auto; white-space: pre-wrap; }
+  .spin { display:inline-block; width:1ch; margin-left:.35em; }
+  .spin::before { content: "|"; display: inline-block; animation: spin .8s steps(4) infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .card.job { margin-bottom: 1rem; }
-  .error { background: #3a2222; color: var(--bad); border: 1px solid #5a3333; border-radius: 8px; padding: .6rem .8rem; margin-bottom: 1rem; }
-  .pill.big { font-size: .85rem; padding: .2rem .6rem; }
+  .error { background: var(--bg); color: var(--bad); border: 1px solid var(--bad); padding: .5rem .8rem; margin-bottom: 1rem; }
+  .error::before { content: "!! "; font-weight: 700; }
+  .error.warn { color: var(--warn); border-color: var(--warn); }
+  .pill.big { font-size: .9rem; padding: .1rem .45rem; }
   .grid.two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
   .connect .cmd { justify-content: space-between; padding: .3rem 0; border-bottom: 1px dashed var(--border); }
   .connect .cmd:last-child { border-bottom: 0; }
-  button.copy { padding: .15rem .5rem; font-size: .75rem; }
-  button.bad { border-color: #5a3333; background: #3a2222; color: var(--bad); }
+  button.copy { padding: 0 .3rem; font-size: .75rem; }
+  button.bad { border-color: var(--bad); color: var(--bad); }
+  button.bad:hover { background: var(--bad); color: var(--bg); }
   details.popover { position: relative; }
-  details.popover summary { list-style: none; display: inline-block; }
+  details.popover summary { list-style: none; display: inline-block; cursor: pointer; }
   details.popover summary::-webkit-details-marker { display: none; }
-  details.popover > form.card { position: absolute; right: 0; top: calc(100% + .4rem); z-index: 20; width: 22rem; display: grid; gap: .6rem; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
-  details.danger > form.card { border-color: #5a3333; }
+  details.popover > form.card { position: absolute; right: 0; top: calc(100% + .4rem); z-index: 20; width: 22rem; display: grid; gap: .6rem; border-color: var(--text); box-shadow: 4px 4px 0 var(--dim); }
+  details.danger > form.card { border-color: var(--bad); }
   form.form { display: grid; gap: 1rem; }
   form label { display: grid; gap: .3rem; }
   form label.radio { grid-template-columns: auto 1fr; align-items: baseline; gap: .5rem; }
   form label.radio input { margin: 0; }
   form label.radio strong { margin-right: .4rem; }
-  form input[type=text], form input:not([type]) { background: #0b1016; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: .45rem .6rem; font: inherit; }
-  form fieldset { border: 1px solid var(--border); border-radius: 10px; padding: .75rem 1rem; display: grid; gap: .5rem; }
-  form legend { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding: 0 .4rem; }
-  .meter { height: 8px; background: #0b1016; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: .6rem; }
-  .meter span { display: block; height: 100%; background: var(--accent); }
-  .meter span.warn { background: var(--warn); }
-  form select { background: #0b1016; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: .45rem .6rem; font: inherit; }
+  form input[type=text], form input:not([type]), form select, form textarea { background: var(--bg); color: var(--accent2); border: 1px solid var(--border); padding: .35rem .5rem; font: inherit; }
+  form input:focus, form select:focus, form textarea:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+  input, select, textarea { accent-color: var(--text); }
+  form fieldset { border: 1px solid var(--border); padding: .6rem .9rem; display: grid; gap: .5rem; }
+  form legend { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; padding: 0 .4rem; }
+  .meter { height: 10px; background: var(--bg); border: 1px solid var(--border); overflow: hidden; margin-top: .6rem; }
+  .meter span { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--text) 0 6px, transparent 6px 8px); }
+  .meter span.warn { background: repeating-linear-gradient(90deg, var(--warn) 0 6px, transparent 6px 8px); }
   .kv { display: grid; grid-template-columns: max-content 1fr; gap: .25rem .75rem; margin: .5rem 0 0; }
-  .kv dt { color: var(--muted); } .kv dd { margin: 0; }
+  .kv dt { color: var(--muted); } .kv dt::after { content: ":"; } .kv dd { margin: 0; }
   ul.plain { list-style: none; padding: 0; margin: .25rem 0 0; } ul.plain li { padding: .15rem 0; }
+  ul.plain li::before { content: "- "; color: var(--muted); }
   .inline-form { display: inline-flex; gap: .4rem; align-items: center; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; } ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border: 1px solid var(--bg); }
 </style>
 {{end}}
 

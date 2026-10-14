@@ -28,6 +28,9 @@ kaas ui stop
 
 Then open [http://127.0.0.1:18181/](http://127.0.0.1:18181/).
 
+The UI is styled like a terminal: dark mode only, green-on-black, monospace.
+All styling lives in the `styles` block of `internal/ui/templates/shared.html`.
+
 ## What you see
 
 | Page | Content |

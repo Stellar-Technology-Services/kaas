@@ -14,7 +14,7 @@
   <p class="muted" style="margin:-.5rem 0 1rem">Runs <code>kaas up &lt;name&gt;</code> in the background with the flags below. Defaults match <code>boat new</code>: one command, sensible size, ready in a few minutes.</p>
 {{with .Form}}
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
-  {{if .Capacity.Warn}}<div class="error" style="background:#3a341d;color:var(--warn);border-color:#5a5033">Host memory is already {{.Capacity.MemoryPercent}}% allocated to running sandboxes ({{.Capacity.AllocMemoryGiB}} of {{.Capacity.HostMemoryGiB}} GiB). Another VM may swap. Stop one first, or pick <code>small</code>.</div>{{end}}
+  {{if .Capacity.Warn}}<div class="error warn">Host memory is already {{.Capacity.MemoryPercent}}% allocated to running sandboxes ({{.Capacity.AllocMemoryGiB}} of {{.Capacity.HostMemoryGiB}} GiB). Another VM may swap. Stop one first, or pick <code>small</code>.</div>{{end}}
   <form method="post" action="/sandboxes" class="card form">
     <label>Name
       <input name="name" value="{{.Name}}" required pattern="[a-z0-9][a-z0-9-]*" autocomplete="off">
